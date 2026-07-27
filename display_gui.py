@@ -4,18 +4,12 @@ import socket
 import json
 import threading
 import time
-import os
-import sys
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'simulator'))
-from theme import apply_theme, DarkTheme
 
 class DisplayGUI:
     def __init__(self, root, vm_host='127.0.0.1', vm_port=7778):
         self.root = root
-        self.theme = apply_theme(root, DarkTheme)
         self.root.title("mPython Virtual Board")
-        self.root.geometry("420x860")
+        self.root.geometry("400x820")
         self.root.attributes('-topmost', True)
         self.root.lift()
         self.root.focus_force()
@@ -46,251 +40,165 @@ class DisplayGUI:
         self._detect_sensors_async()
     
     def _create_widgets(self):
-        t = self.theme
-
-        top_bar = tk.Frame(self.root, bg=t.BG_PANEL, height=40)
-        top_bar.pack(fill=tk.X, side=tk.TOP)
-        top_bar.pack_propagate(False)
-        tk.Label(top_bar, text="◆", fg=t.ACCENT, bg=t.BG_PANEL,
-                 font=("Segoe UI", 14)).pack(side=tk.LEFT, padx=(12, 4))
-        tk.Label(top_bar, text="Virtual Board", fg=t.FG, bg=t.BG_PANEL,
-                 font=("Segoe UI", 11, "bold")).pack(side=tk.LEFT)
-        tk.Button(top_bar, text="⚙", width=3, command=self._show_settings,
-                  bg=t.BUTTON_BG, fg=t.FG, activebackground=t.BUTTON_HOVER,
-                  activeforeground=t.FG, font=("Segoe UI", 10),
-                  relief=tk.FLAT, bd=0, padx=6, pady=2, cursor="hand2").pack(side=tk.RIGHT, padx=10)
-
-        canvas = tk.Canvas(self.root, bg=t.BG, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(self.root, orient=tk.VERTICAL, command=canvas.yview)
-        scroll_frame = tk.Frame(canvas, bg=t.BG)
-
-        scroll_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
-
-        self._create_oled(scroll_frame, t)
-        self._create_rgb(scroll_frame, t)
-        self._create_buttons(scroll_frame, t)
-        self._create_touch(scroll_frame, t)
-        self._create_sensors(scroll_frame, t)
-        self._create_control(scroll_frame, t)
-        self._create_status(scroll_frame, t)
+        top_frame = ttk.Frame(self.root)
+        top_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Label(top_frame, text="mPython Virtual Board", font=("Arial", 12, "bold")).pack(side=tk.LEFT, padx=10)
+        ttk.Button(top_frame, text="⚙️ Settings", width=10, command=self._show_settings).pack(side=tk.RIGHT, padx=10)
+        
+        board_frame = ttk.LabelFrame(self.root, text="Hardware Simulation", padding=8)
+        board_frame.pack(fill=tk.BOTH, expand=True)
+        
+        self._create_oled(board_frame)
+        self._create_rgb(board_frame)
+        self._create_buttons(board_frame)
+        self._create_touch(board_frame)
+        self._create_sensors(board_frame)
+        self._create_control(board_frame)
+        self._create_status(board_frame)
     
-    def _create_oled(self, parent, t):
-        oled_frame = tk.Frame(parent, bg=t.BG_CARD, bd=0, highlightthickness=0)
-        oled_frame.pack(fill=tk.X, padx=4, pady=4)
-
-        header = tk.Frame(oled_frame, bg=t.BG_CARD)
-        header.pack(fill=tk.X, padx=12, pady=(10, 0))
-        tk.Label(header, text="OLED 显示屏", fg=t.FG, bg=t.BG_CARD,
-                 font=("Segoe UI", 10, "bold")).pack(side=tk.LEFT)
-        tk.Label(header, text="128×64", fg=t.FG_DIM, bg=t.BG_CARD,
-                 font=("Segoe UI", 8)).pack(side=tk.RIGHT)
-
-        outer_frame = tk.Frame(oled_frame, bg=t.OLED_FRAME, bd=0, highlightthickness=0)
-        outer_frame.pack(padx=16, pady=10)
-
-        inner_frame = tk.Frame(outer_frame, bg=t.OLED_BG, bd=0, highlightthickness=0)
-        inner_frame.pack(padx=6, pady=6)
-
-        self.oled_text = tk.Label(inner_frame, text="等待连接...", font=("Consolas", 10),
-                                  bg=t.OLED_BG, fg=t.OLED_FG, justify=tk.LEFT, anchor="nw",
+    def _create_oled(self, parent):
+        oled_frame = ttk.LabelFrame(parent, text="OLED Display (128x64)", padding=0)
+        oled_frame.pack(pady=5)
+        
+        outer_frame = tk.Frame(oled_frame, bg="#2a2a2a", bd=0, highlightthickness=0)
+        outer_frame.pack(padx=12, pady=12)
+        
+        inner_frame = tk.Frame(outer_frame, bg="#0a0a1a", bd=0, highlightthickness=0)
+        inner_frame.pack(padx=8, pady=8)
+        
+        self.oled_text = tk.Label(inner_frame, text="Waiting for connection...", font=("Courier New", 10),
+                                  bg="#0a0a1a", fg="#b4d4ff", justify=tk.LEFT, anchor="nw",
                                   width=21, height=8, padx=4, pady=4)
         self.oled_text.pack()
-
-        self.oled_status = tk.Label(header, text="●", fg=t.ERROR, bg=t.BG_CARD,
-                                    font=("Segoe UI", 10))
-        self.oled_status.pack(side=tk.RIGHT, padx=(0, 40))
-
-    def _create_rgb(self, parent, t):
-        rgb_frame = tk.Frame(parent, bg=t.BG_CARD, bd=0, highlightthickness=0)
-        rgb_frame.pack(fill=tk.X, padx=4, pady=4)
-
-        header = tk.Frame(rgb_frame, bg=t.BG_CARD)
-        header.pack(fill=tk.X, padx=12, pady=(10, 0))
-        tk.Label(header, text="RGB LED", fg=t.FG, bg=t.BG_CARD,
-                 font=("Segoe UI", 10, "bold")).pack(side=tk.LEFT)
-
-        self._rgb_canvas = tk.Canvas(rgb_frame, height=50, bg=t.BG_CARD, highlightthickness=0)
-        self._rgb_canvas.pack(fill=tk.X, padx=12, pady=8)
+        
+        label_frame = tk.Frame(outer_frame, bg="#2a2a2a")
+        label_frame.pack(fill=tk.X, padx=8, pady=(0, 6))
+        tk.Label(label_frame, text="128×64 OLED", fg="#666", bg="#2a2a2a", font=("Arial", 7)).pack(side=tk.LEFT)
+        self.oled_status = tk.Label(label_frame, text="●", fg="#f00", bg="#2a2a2a", font=("Arial", 6))
+        self.oled_status.pack(side=tk.RIGHT)
+    
+    def _create_rgb(self, parent):
+        rgb_frame = ttk.LabelFrame(parent, text="RGB LED", padding=3)
+        rgb_frame.pack(fill=tk.X, pady=5)
+        
+        self._rgb_canvas = tk.Canvas(rgb_frame, width=256, height=40, bg="#222", highlightthickness=0)
+        self._rgb_canvas.pack()
         self.rgb_indicators = []
         for i in range(3):
-            x = 40 + i * 90
-            indicator = self._rgb_canvas.create_oval(x, 12, x + 34, 40,
-                                                     fill=t.RGB_OFF, outline=t.RGB_OUTLINE, width=2)
+            x = 20 + i * 80
+            indicator = self._rgb_canvas.create_oval(x, 8, x + 40, 32, fill="black", outline="#444")
             self.rgb_indicators.append(indicator)
-            self._rgb_canvas.create_text(x + 17, 50, text=f"RGB {i+1}",
-                                         fill=t.FG_DIM, font=("Segoe UI", 8))
-
-    def _create_buttons(self, parent, t):
-        btn_frame = tk.Frame(parent, bg=t.BG_CARD, bd=0, highlightthickness=0)
-        btn_frame.pack(fill=tk.X, padx=4, pady=4)
-
-        header = tk.Frame(btn_frame, bg=t.BG_CARD)
-        header.pack(fill=tk.X, padx=12, pady=(10, 0))
-        tk.Label(header, text="按键", fg=t.FG, bg=t.BG_CARD,
-                 font=("Segoe UI", 10, "bold")).pack(side=tk.LEFT)
-
-        btn_row = tk.Frame(btn_frame, bg=t.BG_CARD)
-        btn_row.pack(pady=12)
-
-        self.btn_a = tk.Button(btn_row, text="按键 A", width=12,
-                               bg=t.BUTTON_BG, fg=t.FG,
-                               activebackground=t.ACCENT, activeforeground=t.BG,
-                               font=("Segoe UI", 9, "bold"),
-                               relief=tk.FLAT, bd=0, padx=8, pady=6, cursor="hand2")
-        self.btn_a.pack(side=tk.LEFT, padx=12)
+    
+    def _create_buttons(self, parent):
+        btn_frame = ttk.LabelFrame(parent, text="Buttons", padding=3)
+        btn_frame.pack(fill=tk.X, pady=5)
+        
+        btn_row = ttk.Frame(btn_frame)
+        btn_row.pack()
+        
+        self.btn_a = ttk.Button(btn_row, text="Button A", width=10)
+        self.btn_a.pack(side=tk.LEFT, padx=10, pady=2)
         self.btn_a.bind('<ButtonPress-1>', lambda e: self._send_button('A', True))
         self.btn_a.bind('<ButtonRelease-1>', lambda e: self._send_button('A', False))
-
-        self.btn_b = tk.Button(btn_row, text="按键 B", width=12,
-                               bg=t.BUTTON_BG, fg=t.FG,
-                               activebackground=t.ACCENT, activeforeground=t.BG,
-                               font=("Segoe UI", 9, "bold"),
-                               relief=tk.FLAT, bd=0, padx=8, pady=6, cursor="hand2")
-        self.btn_b.pack(side=tk.LEFT, padx=12)
+        
+        self.btn_b = ttk.Button(btn_row, text="Button B", width=10)
+        self.btn_b.pack(side=tk.LEFT, padx=10, pady=2)
         self.btn_b.bind('<ButtonPress-1>', lambda e: self._send_button('B', True))
         self.btn_b.bind('<ButtonRelease-1>', lambda e: self._send_button('B', False))
-
-    def _create_touch(self, parent, t):
-        touch_frame = tk.Frame(parent, bg=t.BG_CARD, bd=0, highlightthickness=0)
-        touch_frame.pack(fill=tk.X, padx=4, pady=4)
-
-        header = tk.Frame(touch_frame, bg=t.BG_CARD)
-        header.pack(fill=tk.X, padx=12, pady=(10, 0))
-        tk.Label(header, text="触摸按键", fg=t.FG, bg=t.BG_CARD,
-                 font=("Segoe UI", 10, "bold")).pack(side=tk.LEFT)
-        tk.Label(header, text="P Y T H O N", fg=t.FG_DIM, bg=t.BG_CARD,
-                 font=("Segoe UI", 8)).pack(side=tk.RIGHT)
-
-        self._touch_canvas = tk.Canvas(touch_frame, height=55, bg=t.BG_CARD, highlightthickness=0)
-        self._touch_canvas.pack(fill=tk.X, padx=12, pady=(4, 10))
-
+    
+    def _create_touch(self, parent):
+        touch_frame = ttk.LabelFrame(parent, text="Touch Pads (P Y T H O N)", padding=3)
+        touch_frame.pack(fill=tk.X, pady=5)
+        
+        self._touch_canvas = tk.Canvas(touch_frame, width=256, height=45, bg="#333", highlightthickness=0)
+        self._touch_canvas.pack()
+        
         self.touch_indicators = {}
         for i, label in enumerate(['P', 'Y', 'T', 'H', 'O', 'N']):
-            x = 20 + i * 42
-            indicator = self._touch_canvas.create_oval(x, 10, x + 26, 36,
-                                                        fill=t.RGB_OFF, outline=t.RGB_OUTLINE, width=1)
-            text = self._touch_canvas.create_text(x + 13, 46, text=label, fill=t.FG_DIM,
-                                                  font=("Segoe UI", 9, "bold"))
+            x = 15 + i * 40
+            indicator = self._touch_canvas.create_oval(x, 8, x + 22, 28, fill="#555", outline="#777")
+            text = self._touch_canvas.create_text(x + 11, 38, text=label, fill="#AAA", font=("Arial", 8))
             self.touch_indicators[label] = indicator
             self._touch_canvas.tag_bind(indicator, '<ButtonPress-1>', lambda e, l=label: self._send_touch(l, True))
             self._touch_canvas.tag_bind(indicator, '<ButtonRelease-1>', lambda e, l=label: self._send_touch(l, False))
             self._touch_canvas.tag_bind(text, '<ButtonPress-1>', lambda e, l=label: self._send_touch(l, True))
             self._touch_canvas.tag_bind(text, '<ButtonRelease-1>', lambda e, l=label: self._send_touch(l, False))
-
-    def _create_sensors(self, parent, t):
-        sensor_frame = tk.Frame(parent, bg=t.BG_CARD, bd=0, highlightthickness=0)
-        sensor_frame.pack(fill=tk.X, padx=4, pady=4)
-
-        header = tk.Frame(sensor_frame, bg=t.BG_CARD)
-        header.pack(fill=tk.X, padx=12, pady=(10, 0))
-        tk.Label(header, text="传感器数据", fg=t.FG, bg=t.BG_CARD,
-                 font=("Segoe UI", 10, "bold")).pack(side=tk.LEFT)
-
-        sensor_grid = tk.Frame(sensor_frame, bg=t.BG_CARD)
-        sensor_grid.pack(fill=tk.X, padx=12, pady=(6, 10))
-
-        sensor_items = [
-            ("加速度:", "x: 0.00  y: 0.00  z: 1.00"),
-            ("光线:", "---"),
-            ("声音:", "---"),
-        ]
+    
+    def _create_sensors(self, parent):
+        sensor_frame = ttk.LabelFrame(parent, text="Sensor Data", padding=3)
+        sensor_frame.pack(fill=tk.X, pady=5)
+        
         self.sensor_vars = []
-        for i, (label, default) in enumerate(sensor_items):
-            cell = tk.Frame(sensor_grid, bg=t.BG_CARD)
-            cell.grid(row=i, column=0, sticky="w", padx=6, pady=2)
-            tk.Label(cell, text=label, fg=t.FG_DIM, bg=t.BG_CARD,
-                     font=("Segoe UI", 9)).pack(side=tk.LEFT)
+        for label, default in [
+            ("Accel:", "x: 0.00  y: 0.00  z: 1.00"),
+            ("Light:", "---"),
+            ("Sound:", "---"),
+        ]:
+            row = ttk.Frame(sensor_frame)
+            row.pack(fill=tk.X, pady=1)
+            ttk.Label(row, text=label, width=8, font=("Arial", 8)).pack(side=tk.LEFT)
             var = tk.StringVar(value=default)
             self.sensor_vars.append(var)
-            tk.Label(cell, textvariable=var, fg=t.FG, bg=t.BG_CARD,
-                     font=("Consolas", 9)).pack(side=tk.LEFT, padx=(4, 0))
-
-    def _create_control(self, parent, t):
-        control_frame = tk.Frame(parent, bg=t.BG_CARD, bd=0, highlightthickness=0)
-        control_frame.pack(fill=tk.X, padx=4, pady=4)
-
-        header = tk.Frame(control_frame, bg=t.BG_CARD)
-        header.pack(fill=tk.X, padx=12, pady=(10, 0))
-        tk.Label(header, text="传感器控制", fg=t.FG, bg=t.BG_CARD,
-                 font=("Segoe UI", 10, "bold")).pack(side=tk.LEFT)
-
-        manual_frame = tk.Frame(control_frame, bg=t.BG_CARD)
-        manual_frame.pack(fill=tk.X, padx=12, pady=8)
-
+            ttk.Label(row, textvariable=var, font=("Arial", 8)).pack(side=tk.LEFT)
+    
+    def _create_control(self, parent):
+        control_frame = ttk.LabelFrame(parent, text="Sensor Control", padding=3)
+        control_frame.pack(fill=tk.X, pady=5)
+        
         self._manual_mode_var = tk.BooleanVar(value=False)
-        tk.Checkbutton(manual_frame, text="手动模式", variable=self._manual_mode_var,
-                        command=self._toggle_manual_mode,
-                        bg=t.BG_CARD, fg=t.FG, activebackground=t.BG_CARD,
-                        activeforeground=t.FG, selectcolor=t.BG_INPUT,
-                        font=("Segoe UI", 9)).pack(anchor=tk.W)
-
-        light_row = tk.Frame(manual_frame, bg=t.BG_CARD)
-        light_row.pack(fill=tk.X, pady=4)
-        tk.Label(light_row, text="光线:", width=6, fg=t.FG_DIM, bg=t.BG_CARD,
-                 font=("Segoe UI", 9)).pack(side=tk.LEFT)
+        ttk.Checkbutton(control_frame, text="Manual Mode", variable=self._manual_mode_var,
+                       command=self._toggle_manual_mode).pack(anchor=tk.W)
+        
+        manual_frame = ttk.Frame(control_frame)
+        manual_frame.pack(fill=tk.X, pady=3)
+        
+        light_row = ttk.Frame(manual_frame)
+        light_row.pack(fill=tk.X, pady=2)
+        ttk.Label(light_row, text="Light:", width=6, font=("Arial", 8)).pack(side=tk.LEFT)
         self._light_slider = ttk.Scale(light_row, from_=0, to=4095, orient=tk.HORIZONTAL,
-                                       command=lambda v: self._set_sensor('light', int(float(v))))
+                                      command=lambda v: self._set_sensor('light', int(float(v))))
         self._light_slider.set(500)
-        self._light_slider.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=4)
-        self._light_label = tk.Label(light_row, text="500", width=6, fg=t.FG, bg=t.BG_CARD,
-                                     font=("Consolas", 9))
+        self._light_slider.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self._light_label = ttk.Label(light_row, text="500", width=6, font=("Arial", 8))
         self._light_label.pack(side=tk.LEFT)
-
-        sound_row = tk.Frame(manual_frame, bg=t.BG_CARD)
-        sound_row.pack(fill=tk.X, pady=4)
-        tk.Label(sound_row, text="声音:", width=6, fg=t.FG_DIM, bg=t.BG_CARD,
-                 font=("Segoe UI", 9)).pack(side=tk.LEFT)
+        
+        sound_row = ttk.Frame(manual_frame)
+        sound_row.pack(fill=tk.X, pady=2)
+        ttk.Label(sound_row, text="Sound:", width=6, font=("Arial", 8)).pack(side=tk.LEFT)
         self._sound_slider = ttk.Scale(sound_row, from_=0, to=4095, orient=tk.HORIZONTAL,
-                                        command=lambda v: self._set_sensor('sound', int(float(v))))
+                                       command=lambda v: self._set_sensor('sound', int(float(v))))
         self._sound_slider.set(200)
-        self._sound_slider.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=4)
-        self._sound_label = tk.Label(sound_row, text="200", width=6, fg=t.FG, bg=t.BG_CARD,
-                                      font=("Consolas", 9))
+        self._sound_slider.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self._sound_label = ttk.Label(sound_row, text="200", width=6, font=("Arial", 8))
         self._sound_label.pack(side=tk.LEFT)
-
-        action_frame = tk.Frame(control_frame, bg=t.BG_CARD)
-        action_frame.pack(fill=tk.X, padx=12, pady=(4, 10))
-
-        tk.Label(action_frame, text="加速度控制", fg=t.FG_DIM, bg=t.BG_CARD,
-                 font=("Segoe UI", 8)).pack(anchor=tk.W)
-
+        
+        action_frame = ttk.LabelFrame(control_frame, text="Accelerometer Actions", padding=3)
+        action_frame.pack(fill=tk.X, pady=3)
+        
         actions = [
-            ("静止", lambda: self._set_accel(0.0, 0.0, 1.0)),
-            ("摇动", self._shake_action),
-            ("前倾", lambda: self._set_accel(0.0, 1.0, 0.1)),
-            ("后倾", lambda: self._set_accel(0.0, -1.0, 0.1)),
-            ("左倾", lambda: self._set_accel(-1.0, 0.0, 0.1)),
-            ("右倾", lambda: self._set_accel(1.0, 0.0, 0.1)),
+            ("Still", lambda: self._set_accel(0.0, 0.0, 1.0)),
+            ("Shake", self._shake_action),
+            ("Tilt Forward", lambda: self._set_accel(0.0, 1.0, 0.1)),
+            ("Tilt Back", lambda: self._set_accel(0.0, -1.0, 0.1)),
+            ("Tilt Left", lambda: self._set_accel(-1.0, 0.0, 0.1)),
+            ("Tilt Right", lambda: self._set_accel(1.0, 0.0, 0.1)),
         ]
-
+        
         for i in range(2):
-            btn_row = tk.Frame(action_frame, bg=t.BG_CARD)
-            btn_row.pack(fill=tk.X, pady=2)
+            btn_row = ttk.Frame(action_frame)
+            btn_row.pack(fill=tk.X)
             for name, cmd in actions[i*3:(i+1)*3]:
-                tk.Button(btn_row, text=name, width=8, command=cmd,
-                          bg=t.BUTTON_BG, fg=t.FG, activebackground=t.ACCENT,
-                          activeforeground=t.BG, font=("Segoe UI", 8),
-                          relief=tk.FLAT, bd=0, padx=6, pady=3, cursor="hand2").pack(side=tk.LEFT, padx=2)
-
-    def _create_status(self, parent, t):
-        status_frame = tk.Frame(parent, bg=t.BG_CARD)
-        status_frame.pack(fill=tk.X, padx=4, pady=4)
-
-        self.status_label = tk.Label(status_frame, text="● 未连接", fg=t.ERROR, bg=t.BG_CARD,
-                                     font=("Segoe UI", 9))
-        self.status_label.pack(side=tk.LEFT, padx=12, pady=8)
-        self.update_time = tk.Label(status_frame, text="", fg=t.FG_DIM, bg=t.BG_CARD,
-                                     font=("Segoe UI", 8))
-        self.update_time.pack(side=tk.RIGHT, padx=12)
+                ttk.Button(btn_row, text=name, width=10, command=cmd).pack(side=tk.LEFT, padx=2, pady=2)
+    
+    def _create_status(self, parent):
+        status_frame = ttk.Frame(parent)
+        status_frame.pack(fill=tk.X, pady=5)
+        
+        self.status_label = ttk.Label(status_frame, text="🔌 Disconnected", foreground="red", font=("Arial", 8))
+        self.status_label.pack(side=tk.LEFT, padx=5)
+        self.update_time = ttk.Label(status_frame, text="", font=("Arial", 8))
+        self.update_time.pack(side=tk.RIGHT)
     
     def _detect_sensors_async(self):
         def detect():

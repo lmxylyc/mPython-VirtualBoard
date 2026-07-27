@@ -8,35 +8,12 @@ import time
 import random
 import math
 
-# 平台检测
-IS_WINDOWS = sys.platform.startswith('win')
-IS_MACOS = sys.platform == 'darwin'
-
-def _default_serial_port():
-    """返回当前平台默认的串口"""
-    if IS_WINDOWS:
-        return "COM20"
-    elif IS_MACOS:
-        return "/dev/cu.mpVirt2"
-    else:
-        return "/tmp/vcom2"
-
-def _default_host_port():
-    """返回当前平台默认的主机串口"""
-    if IS_WINDOWS:
-        return "COM19"
-    elif IS_MACOS:
-        return "/dev/cu.mpVirt1"
-    else:
-        return "/tmp/vcom1"
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'simulator'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'simulator', 'modules'))
 sys.path.insert(0, os.path.dirname(__file__))
 
 from shared_state import shared_state
 from mindplus_transpiler import is_mindplus_code, transpile
-from theme import apply_theme, DarkTheme
 
 pc_sensors = None
 VM_PORT = 7777
@@ -49,9 +26,8 @@ _vm_initialized = False
 class IntegratedVMApp:
     def __init__(self, root):
         self.root = root
-        self.theme = apply_theme(root, DarkTheme)
-        self.root.title("mPython Virtual Board")
-        self.root.geometry("1360x840")
+        self.root.title("mPython掌控板虚拟机 - 教育版")
+        self.root.geometry("1300x800")
         self.root.minsize(1100, 700)
 
         self.vm_process = None
@@ -71,15 +47,10 @@ class IntegratedVMApp:
         self._load_tutorial_progress()
 
     def _create_menu(self):
-        t = self.theme
-        menubar = tk.Menu(self.root, bg=t.BG_PANEL, fg=t.FG,
-                          activebackground=t.ACCENT, activeforeground=t.BG,
-                          relief=tk.FLAT, bd=0)
+        menubar = tk.Menu(self.root)
         self.root.config(menu=menubar)
 
-        file_menu = tk.Menu(menubar, tearoff=0, bg=t.BG_PANEL, fg=t.FG,
-                            activebackground=t.ACCENT, activeforeground=t.BG,
-                            relief=tk.FLAT, bd=0)
+        file_menu = tk.Menu(menubar, tearoff=0)
         file_menu.add_command(label="打开文件", command=self.open_file, accelerator="Ctrl+O")
         file_menu.add_command(label="保存文件", command=self.save_file, accelerator="Ctrl+S")
         file_menu.add_command(label="另存为...", command=self.save_as_file)
@@ -87,34 +58,26 @@ class IntegratedVMApp:
         file_menu.add_command(label="退出", command=self._on_exit)
         menubar.add_cascade(label="文件", menu=file_menu)
 
-        vm_menu = tk.Menu(menubar, tearoff=0, bg=t.BG_PANEL, fg=t.FG,
-                          activebackground=t.ACCENT, activeforeground=t.BG,
-                          relief=tk.FLAT, bd=0)
+        vm_menu = tk.Menu(menubar, tearoff=0)
         vm_menu.add_command(label="启动虚拟机", command=self.start_vm)
         vm_menu.add_command(label="连接虚拟机", command=self._toggle_connect)
         vm_menu.add_command(label="重启虚拟机", command=self.restart_vm)
         menubar.add_cascade(label="虚拟机", menu=vm_menu)
 
-        code_menu = tk.Menu(menubar, tearoff=0, bg=t.BG_PANEL, fg=t.FG,
-                            activebackground=t.ACCENT, activeforeground=t.BG,
-                            relief=tk.FLAT, bd=0)
+        code_menu = tk.Menu(menubar, tearoff=0)
         code_menu.add_command(label="运行代码", command=self.run_code, accelerator="F5")
         code_menu.add_command(label="停止运行", command=self.stop_code, accelerator="F6")
         code_menu.add_command(label="清空输出", command=self.clear_output)
         menubar.add_cascade(label="代码", menu=code_menu)
 
-        learn_menu = tk.Menu(menubar, tearoff=0, bg=t.BG_PANEL, fg=t.FG,
-                             activebackground=t.ACCENT, activeforeground=t.BG,
-                             relief=tk.FLAT, bd=0)
+        learn_menu = tk.Menu(menubar, tearoff=0)
         learn_menu.add_command(label="教程入门", command=self._show_tutorial_select)
         learn_menu.add_command(label="示例代码", command=self._show_example_select)
         learn_menu.add_command(label="API文档", command=self._show_api_docs)
         learn_menu.add_command(label="组件说明", command=self._show_component_info)
         menubar.add_cascade(label="学习", menu=learn_menu)
 
-        help_menu = tk.Menu(menubar, tearoff=0, bg=t.BG_PANEL, fg=t.FG,
-                            activebackground=t.ACCENT, activeforeground=t.BG,
-                            relief=tk.FLAT, bd=0)
+        help_menu = tk.Menu(menubar, tearoff=0)
         help_menu.add_command(label="使用说明", command=self._show_help)
         help_menu.add_command(label="关于", command=self._show_about)
         menubar.add_cascade(label="帮助", menu=help_menu)
@@ -125,294 +88,142 @@ class IntegratedVMApp:
         self.root.bind('<F6>', lambda e: self.stop_code())
 
     def _create_toolbar(self):
-        t = self.theme
-        toolbar = tk.Frame(self.root, bg=t.BG_PANEL, height=48)
-        toolbar.pack(fill=tk.X, side=tk.TOP)
-        toolbar.pack_propagate(False)
+        toolbar = ttk.Frame(self.root, padding=3)
+        toolbar.pack(fill=tk.X)
 
-        brand = tk.Frame(toolbar, bg=t.BG_PANEL)
-        brand.pack(side=tk.LEFT, padx=(16, 12))
-        tk.Label(brand, text="◆", fg=t.ACCENT, bg=t.BG_PANEL,
-                 font=("Segoe UI", 18)).pack(side=tk.LEFT)
-        tk.Label(brand, text="mPython Virtual Board", fg=t.FG, bg=t.BG_PANEL,
-                 font=("Segoe UI", 12, "bold")).pack(side=tk.LEFT, padx=(6, 0))
+        self.vm_btn = ttk.Button(toolbar, text="▶ 启动虚拟机", command=self.start_vm)
+        self.vm_btn.pack(side=tk.LEFT, padx=2)
 
-        sep1 = tk.Frame(toolbar, bg=t.BORDER_LIGHT, width=1)
-        sep1.pack(side=tk.LEFT, fill=tk.Y, padx=10, pady=8)
+        self.conn_btn = ttk.Button(toolbar, text="🔗 连接", command=self._toggle_connect, state=tk.DISABLED)
+        self.conn_btn.pack(side=tk.LEFT, padx=2)
 
-        vm_frame = tk.Frame(toolbar, bg=t.BG_PANEL)
-        vm_frame.pack(side=tk.LEFT, padx=2)
-        self.vm_btn = tk.Button(vm_frame, text="▶ 启动虚拟机", command=self.start_vm,
-                                bg=t.ACCENT, fg=t.BG, activebackground=t.ACCENT_HOVER,
-                                activeforeground=t.BG, font=("Segoe UI", 9, "bold"),
-                                relief=tk.FLAT, bd=0, padx=12, pady=4, cursor="hand2")
-        self.vm_btn.pack(side=tk.LEFT)
+        ttk.Separator(toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
 
-        self.conn_btn = tk.Button(vm_frame, text="连接", command=self._toggle_connect,
-                                  bg=t.BUTTON_BG, fg=t.FG, activebackground=t.BUTTON_HOVER,
-                                  activeforeground=t.FG, font=("Segoe UI", 9),
-                                  relief=tk.FLAT, bd=0, padx=10, pady=4, cursor="hand2",
-                                  state=tk.DISABLED)
-        self.conn_btn.pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Button(toolbar, text="▶ 运行 (F5)", command=self.run_code).pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="⏹ 停止 (F6)", command=self.stop_code).pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="🗑 清空输出", command=self.clear_output).pack(side=tk.LEFT, padx=2)
 
-        sep2 = tk.Frame(toolbar, bg=t.BORDER_LIGHT, width=1)
-        sep2.pack(side=tk.LEFT, fill=tk.Y, padx=10, pady=8)
+        ttk.Separator(toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
 
-        run_frame = tk.Frame(toolbar, bg=t.BG_PANEL)
-        run_frame.pack(side=tk.LEFT, padx=2)
-        tk.Button(run_frame, text="▶ 运行 F5", command=self.run_code,
-                  bg=t.SUCCESS, fg=t.BG, activebackground=t.ACCENT_HOVER,
-                  activeforeground=t.BG, font=("Segoe UI", 9, "bold"),
-                  relief=tk.FLAT, bd=0, padx=10, pady=4, cursor="hand2").pack(side=tk.LEFT)
-        tk.Button(run_frame, text="⏹ 停止 F6", command=self.stop_code,
-                  bg=t.BUTTON_BG, fg=t.FG, activebackground=t.BUTTON_HOVER,
-                  activeforeground=t.FG, font=("Segoe UI", 9),
-                  relief=tk.FLAT, bd=0, padx=8, pady=4, cursor="hand2").pack(side=tk.LEFT, padx=(6, 0))
-        tk.Button(run_frame, text="清空", command=self.clear_output,
-                  bg=t.BUTTON_BG, fg=t.FG, activebackground=t.BUTTON_HOVER,
-                  activeforeground=t.FG, font=("Segoe UI", 9),
-                  relief=tk.FLAT, bd=0, padx=8, pady=4, cursor="hand2").pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Button(toolbar, text="📂 打开", command=self.open_file).pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="💾 保存", command=self.save_file).pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="📋 示例", command=self.load_example).pack(side=tk.LEFT, padx=2)
 
-        sep3 = tk.Frame(toolbar, bg=t.BORDER_LIGHT, width=1)
-        sep3.pack(side=tk.LEFT, fill=tk.Y, padx=10, pady=8)
+        ttk.Separator(toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
 
-        file_frame = tk.Frame(toolbar, bg=t.BG_PANEL)
-        file_frame.pack(side=tk.LEFT, padx=2)
-        tk.Button(file_frame, text="📂 打开", command=self.open_file,
-                  bg=t.BUTTON_BG, fg=t.FG, activebackground=t.BUTTON_HOVER,
-                  activeforeground=t.FG, font=("Segoe UI", 9),
-                  relief=tk.FLAT, bd=0, padx=8, pady=4, cursor="hand2").pack(side=tk.LEFT)
-        tk.Button(file_frame, text="💾 保存", command=self.save_file,
-                  bg=t.BUTTON_BG, fg=t.FG, activebackground=t.BUTTON_HOVER,
-                  activeforeground=t.FG, font=("Segoe UI", 9),
-                  relief=tk.FLAT, bd=0, padx=8, pady=4, cursor="hand2").pack(side=tk.LEFT, padx=(6, 0))
-        tk.Button(file_frame, text="📋 示例", command=self.load_example,
-                  bg=t.BUTTON_BG, fg=t.FG, activebackground=t.BUTTON_HOVER,
-                  activeforeground=t.FG, font=("Segoe UI", 9),
-                  relief=tk.FLAT, bd=0, padx=8, pady=4, cursor="hand2").pack(side=tk.LEFT, padx=(6, 0))
+        mode_label = ttk.Label(toolbar, text="模式:", font=("Arial", 9))
+        mode_label.pack(side=tk.LEFT, padx=(5, 2))
 
-        sep4 = tk.Frame(toolbar, bg=t.BORDER_LIGHT, width=1)
-        sep4.pack(side=tk.LEFT, fill=tk.Y, padx=10, pady=8)
+        self.mp_btn = ttk.Button(toolbar, text="mPython", width=9,
+                                 command=lambda: self._set_mode("mpython"))
+        self.mp_btn.pack(side=tk.LEFT, padx=1)
 
-        mode_frame = tk.Frame(toolbar, bg=t.BG_PANEL)
-        mode_frame.pack(side=tk.LEFT, padx=2)
-        tk.Label(mode_frame, text="模式", fg=t.FG_DIM, bg=t.BG_PANEL,
-                 font=("Segoe UI", 9)).pack(side=tk.LEFT, padx=(0, 6))
-        self.mp_btn = tk.Button(mode_frame, text="mPython",
-                                command=lambda: self._set_mode("mpython"),
-                                bg=t.ACCENT, fg=t.BG, activebackground=t.ACCENT_HOVER,
-                                activeforeground=t.BG, font=("Segoe UI", 9, "bold"),
-                                relief=tk.FLAT, bd=0, padx=10, pady=4, cursor="hand2")
-        self.mp_btn.pack(side=tk.LEFT)
-        self.pp_btn = tk.Button(mode_frame, text="PinPong",
-                                command=lambda: self._set_mode("pinpong"),
-                                bg=t.BUTTON_BG, fg=t.FG, activebackground=t.BUTTON_HOVER,
-                                activeforeground=t.FG, font=("Segoe UI", 9),
-                                relief=tk.FLAT, bd=0, padx=10, pady=4, cursor="hand2")
-        self.pp_btn.pack(side=tk.LEFT, padx=(4, 0))
+        self.pp_btn = ttk.Button(toolbar, text="PinPong", width=9,
+                                 command=lambda: self._set_mode("pinpong"))
+        self.pp_btn.pack(side=tk.LEFT, padx=1)
 
-        self.mode_indicator = tk.Label(toolbar, text="● mPython", fg=t.ACCENT, bg=t.BG_PANEL,
-                                       font=("Segoe UI", 9))
-        self.mode_indicator.pack(side=tk.LEFT, padx=(12, 0))
+        self.mode_indicator = ttk.Label(toolbar, text="● mPython", foreground="#2196F3", font=("Arial", 8))
+        self.mode_indicator.pack(side=tk.LEFT, padx=5)
 
-        tk.Button(toolbar, text="Mind+ 配置", command=self._show_mindplus_settings,
-                  bg=t.BUTTON_BG, fg=t.FG, activebackground=t.BUTTON_HOVER,
-                  activeforeground=t.FG, font=("Segoe UI", 9),
-                  relief=tk.FLAT, bd=0, padx=10, pady=4, cursor="hand2").pack(side=tk.RIGHT, padx=8)
+        self.status_label = ttk.Label(toolbar, text="🔌 未连接", foreground="red")
+        self.status_label.pack(side=tk.RIGHT, padx=5)
 
-        self.mindplus_status = tk.Label(toolbar, text="Mind+: 未启动", fg=t.FG_DIM, bg=t.BG_PANEL,
-                                        font=("Segoe UI", 9))
-        self.mindplus_status.pack(side=tk.RIGHT, padx=4)
+        self.mindplus_status = ttk.Label(toolbar, text="🖥️ Mind+: 未启动", foreground="gray", font=("Arial", 8))
+        self.mindplus_status.pack(side=tk.RIGHT, padx=5)
 
-        self.status_label = tk.Label(toolbar, text="● 未连接", fg=t.ERROR, bg=t.BG_PANEL,
-                                     font=("Segoe UI", 9))
-        self.status_label.pack(side=tk.RIGHT, padx=4)
+        ttk.Button(toolbar, text="⚙️ Mind+配置", command=self._show_mindplus_settings).pack(side=tk.RIGHT, padx=2)
 
     def _create_main_layout(self):
-        t = self.theme
-        main_frame = tk.Frame(self.root, bg=t.BG)
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
+        paned.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        paned = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
-        paned.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
-
-        left_frame = tk.Frame(paned, bg=t.BG, width=380)
+        left_frame = ttk.Frame(paned, width=400)
         paned.add(left_frame, weight=0)
         self._create_hardware_panel(left_frame)
 
-        right_frame = tk.Frame(paned, bg=t.BG)
+        right_frame = ttk.Frame(paned)
         paned.add(right_frame, weight=1)
         self._create_editor_panel(right_frame)
 
-        self._create_status_bar(main_frame)
-
-    def _create_status_bar(self, parent):
-        t = self.theme
-        status_frame = tk.Frame(parent, bg=t.BG_PANEL, height=26)
-        status_frame.pack(fill=tk.X, side=tk.BOTTOM)
-        status_frame.pack_propagate(False)
-
-        self._status_mode = tk.Label(status_frame, text="  mPython 模式", fg=t.ACCENT, bg=t.BG_PANEL,
-                                     font=("Segoe UI", 8))
-        self._status_mode.pack(side=tk.LEFT, padx=8)
-
-        self._status_platform = tk.Label(status_frame, text=f"  平台: {sys.platform}", fg=t.FG_DIM, bg=t.BG_PANEL,
-                                         font=("Segoe UI", 8))
-        self._status_platform.pack(side=tk.LEFT, padx=8)
-
-        self._status_conn = tk.Label(status_frame, text="  未连接", fg=t.ERROR, bg=t.BG_PANEL,
-                                      font=("Segoe UI", 8))
-        self._status_conn.pack(side=tk.LEFT, padx=8)
-
-        self._status_right = tk.Label(status_frame, text="就绪", fg=t.FG_DIM, bg=t.BG_PANEL,
-                                       font=("Segoe UI", 8))
-        self._status_right.pack(side=tk.RIGHT, padx=8)
-
     def _create_hardware_panel(self, parent):
-        t = self.theme
-        canvas = tk.Canvas(parent, bg=t.BG, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(parent, orient=tk.VERTICAL, command=canvas.yview)
-        scroll_frame = tk.Frame(canvas, bg=t.BG)
+        self._board_label = ttk.LabelFrame(parent, text="mPython掌控板", padding=8)
+        board_frame = self._board_label
+        board_frame.pack(fill=tk.BOTH, expand=True)
 
-        scroll_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        # ── OLED显示屏（文本模式） ──
+        oled_frame = ttk.LabelFrame(board_frame, text="OLED显示屏 (128x64)", padding=0)
+        oled_frame.pack(pady=5)
 
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        outer_frame = tk.Frame(oled_frame, bg="#2a2a2a", bd=0, highlightthickness=0)
+        outer_frame.pack(padx=12, pady=12)
 
-        def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        inner_frame = tk.Frame(outer_frame, bg="#0a0a1a", bd=0, highlightthickness=0)
+        inner_frame.pack(padx=8, pady=8)
 
-        hw = scroll_frame
-
-        brand_frame = tk.Frame(hw, bg=t.BG)
-        brand_frame.pack(fill=tk.X, padx=4, pady=(4, 8))
-        tk.Label(brand_frame, text="mPython", fg=t.ACCENT, bg=t.BG,
-                 font=("Segoe UI", 16, "bold")).pack(anchor="w")
-        tk.Label(brand_frame, text="Virtual Board", fg=t.FG_DIM, bg=t.BG,
-                 font=("Segoe UI", 9)).pack(anchor="w")
-
-        self._create_oled_display(hw, t)
-        self._create_rgb_section(hw, t)
-        self._create_button_section(hw, t)
-        self._create_touch_section(hw, t)
-        self._create_sensor_section(hw, t)
-
-    def _create_oled_display(self, parent, t):
-        oled_frame = tk.Frame(parent, bg=t.BG_CARD, bd=0, highlightthickness=0)
-        oled_frame.pack(fill=tk.X, padx=4, pady=4)
-
-        header = tk.Frame(oled_frame, bg=t.BG_CARD)
-        header.pack(fill=tk.X, padx=12, pady=(10, 0))
-        tk.Label(header, text="OLED 显示屏", fg=t.FG, bg=t.BG_CARD,
-                 font=("Segoe UI", 10, "bold")).pack(side=tk.LEFT)
-        tk.Label(header, text="128×64", fg=t.FG_DIM, bg=t.BG_CARD,
-                 font=("Segoe UI", 8)).pack(side=tk.RIGHT)
-
-        outer_frame = tk.Frame(oled_frame, bg=t.OLED_FRAME, bd=0, highlightthickness=0)
-        outer_frame.pack(padx=16, pady=10)
-
-        inner_frame = tk.Frame(outer_frame, bg=t.OLED_BG, bd=0, highlightthickness=0)
-        inner_frame.pack(padx=6, pady=6)
-
-        self.oled_text = tk.Label(inner_frame, text="", font=("Consolas", 10),
-                                  bg=t.OLED_BG, fg=t.OLED_FG,
+        # 使用Label直接显示文本，模拟OLED
+        self.oled_text = tk.Label(inner_frame, text="", font=("Courier New", 10),
+                                  bg="#0a0a1a", fg="#b4d4ff",
                                   justify=tk.LEFT, anchor="nw",
                                   width=21, height=8,
                                   padx=4, pady=4)
         self.oled_text.pack()
 
-    def _create_rgb_section(self, parent, t):
-        rgb_frame = tk.Frame(parent, bg=t.BG_CARD, bd=0, highlightthickness=0)
-        rgb_frame.pack(fill=tk.X, padx=4, pady=4)
+        label_frame = tk.Frame(outer_frame, bg="#2a2a2a")
+        label_frame.pack(fill=tk.X, padx=8, pady=(0, 6))
+        tk.Label(label_frame, text="128×64 OLED", fg="#666", bg="#2a2a2a",
+                font=("Arial", 7)).pack(side=tk.LEFT)
+        tk.Label(label_frame, text="●", fg="#0f0", bg="#2a2a2a",
+                font=("Arial", 6)).pack(side=tk.RIGHT)
 
-        header = tk.Frame(rgb_frame, bg=t.BG_CARD)
-        header.pack(fill=tk.X, padx=12, pady=(10, 0))
-        tk.Label(header, text="RGB LED", fg=t.FG, bg=t.BG_CARD,
-                 font=("Segoe UI", 10, "bold")).pack(side=tk.LEFT)
+        # ── RGB LED ──
+        rgb_frame = ttk.LabelFrame(board_frame, text="RGB LED", padding=3)
+        rgb_frame.pack(fill=tk.X, pady=5)
 
-        rgb_canvas = tk.Canvas(rgb_frame, height=50, bg=t.BG_CARD, highlightthickness=0)
-        rgb_canvas.pack(fill=tk.X, padx=12, pady=8)
+        rgb_canvas = tk.Canvas(rgb_frame, width=256, height=40, bg="#222", highlightthickness=0)
+        rgb_canvas.pack()
         self._rgb_canvas = rgb_canvas
         self.rgb_indicators = []
         for i in range(3):
-            x = 40 + i * 90
-            indicator = rgb_canvas.create_oval(x, 12, x + 34, 40,
-                                               fill=t.RGB_OFF, outline=t.RGB_OUTLINE, width=2)
+            x = 20 + i * 80
+            indicator = rgb_canvas.create_oval(x, 8, x + 40, 32, fill="black", outline="#444")
             self.rgb_indicators.append(indicator)
-            label_text = rgb_canvas.create_text(x + 17, 50, text=f"RGB {i+1}",
-                                               fill=t.FG_DIM, font=("Segoe UI", 8))
 
-    def _create_button_section(self, parent, t):
-        btn_frame = tk.Frame(parent, bg=t.BG_CARD, bd=0, highlightthickness=0)
-        btn_frame.pack(fill=tk.X, padx=4, pady=4)
+        # ── 按键 ──
+        btn_frame = ttk.LabelFrame(board_frame, text="按键", padding=3)
+        btn_frame.pack(fill=tk.X, pady=5)
 
-        header = tk.Frame(btn_frame, bg=t.BG_CARD)
-        header.pack(fill=tk.X, padx=12, pady=(10, 0))
-        tk.Label(header, text="按键", fg=t.FG, bg=t.BG_CARD,
-                 font=("Segoe UI", 10, "bold")).pack(side=tk.LEFT)
+        btn_row = ttk.Frame(btn_frame)
+        btn_row.pack()
+        self.btn_a = ttk.Button(btn_row, text="按键A", width=10,
+                                command=lambda: self._toggle_button('A'))
+        self.btn_a.pack(side=tk.LEFT, padx=10, pady=2)
+        self.btn_b = ttk.Button(btn_row, text="按键B", width=10,
+                                command=lambda: self._toggle_button('B'))
+        self.btn_b.pack(side=tk.LEFT, padx=10, pady=2)
 
-        btn_row = tk.Frame(btn_frame, bg=t.BG_CARD)
-        btn_row.pack(pady=12)
+        # ── 触摸按键 ──
+        touch_frame = ttk.LabelFrame(board_frame, text="触摸按键 (P Y T H O N)", padding=3)
+        touch_frame.pack(fill=tk.X, pady=5)
 
-        self.btn_a = tk.Button(btn_row, text="按键 A", width=12,
-                               bg=t.BUTTON_BG, fg=t.FG,
-                               activebackground=t.ACCENT, activeforeground=t.BG,
-                               font=("Segoe UI", 9, "bold"),
-                               relief=tk.FLAT, bd=0, padx=8, pady=6, cursor="hand2",
-                               command=lambda: self._toggle_button('A'))
-        self.btn_a.pack(side=tk.LEFT, padx=15)
-
-        self.btn_b = tk.Button(btn_row, text="按键 B", width=12,
-                               bg=t.BUTTON_BG, fg=t.FG,
-                               activebackground=t.ACCENT, activeforeground=t.BG,
-                               font=("Segoe UI", 9, "bold"),
-                               relief=tk.FLAT, bd=0, padx=8, pady=6, cursor="hand2",
-                               command=lambda: self._toggle_button('B'))
-        self.btn_b.pack(side=tk.LEFT, padx=15)
-
-    def _create_touch_section(self, parent, t):
-        touch_frame = tk.Frame(parent, bg=t.BG_CARD, bd=0, highlightthickness=0)
-        touch_frame.pack(fill=tk.X, padx=4, pady=4)
-
-        header = tk.Frame(touch_frame, bg=t.BG_CARD)
-        header.pack(fill=tk.X, padx=12, pady=(10, 0))
-        tk.Label(header, text="触摸按键", fg=t.FG, bg=t.BG_CARD,
-                 font=("Segoe UI", 10, "bold")).pack(side=tk.LEFT)
-        tk.Label(header, text="P Y T H O N", fg=t.FG_DIM, bg=t.BG_CARD,
-                 font=("Segoe UI", 8)).pack(side=tk.RIGHT)
-
-        touch_canvas = tk.Canvas(touch_frame, height=55, bg=t.BG_CARD, highlightthickness=0)
-        touch_canvas.pack(fill=tk.X, padx=12, pady=(4, 10))
+        touch_canvas = tk.Canvas(touch_frame, width=256, height=45, bg="#333", highlightthickness=0)
+        touch_canvas.pack()
         self._touch_canvas = touch_canvas
 
         touch_labels = ['P', 'Y', 'T', 'H', 'O', 'N']
         self.touch_indicators = {}
         for i, label in enumerate(touch_labels):
-            x = 20 + i * 42
-            indicator = touch_canvas.create_oval(x, 10, x + 26, 36,
-                                                 fill=t.RGB_OFF, outline=t.RGB_OUTLINE, width=1)
-            text = touch_canvas.create_text(x + 13, 46, text=label, fill=t.FG_DIM,
-                                            font=("Segoe UI", 9, "bold"))
+            x = 15 + i * 40
+            indicator = touch_canvas.create_oval(x, 8, x + 22, 28, fill="#555", outline="#777")
+            text = touch_canvas.create_text(x + 11, 38, text=label, fill="#AAA", font=("Arial", 8))
             self.touch_indicators[label] = indicator
             touch_canvas.tag_bind(indicator, '<ButtonPress-1>', lambda e, l=label: self._set_touch(l, True))
             touch_canvas.tag_bind(indicator, '<ButtonRelease-1>', lambda e, l=label: self._set_touch(l, False))
             touch_canvas.tag_bind(text, '<ButtonPress-1>', lambda e, l=label: self._set_touch(l, True))
             touch_canvas.tag_bind(text, '<ButtonRelease-1>', lambda e, l=label: self._set_touch(l, False))
 
-    def _create_sensor_section(self, parent, t):
-        sensor_frame = tk.Frame(parent, bg=t.BG_CARD, bd=0, highlightthickness=0)
-        sensor_frame.pack(fill=tk.X, padx=4, pady=4)
-
-        header = tk.Frame(sensor_frame, bg=t.BG_CARD)
-        header.pack(fill=tk.X, padx=12, pady=(10, 0))
-        tk.Label(header, text="传感器数据", fg=t.FG, bg=t.BG_CARD,
-                 font=("Segoe UI", 10, "bold")).pack(side=tk.LEFT)
-
-        sensor_grid = tk.Frame(sensor_frame, bg=t.BG_CARD)
-        sensor_grid.pack(fill=tk.X, padx=12, pady=(6, 10))
+        # ── 传感器数据 ──
+        sensor_frame = ttk.LabelFrame(board_frame, text="传感器数据", padding=3)
+        sensor_frame.pack(fill=tk.X, pady=5)
 
         sensor_items = [
             ("加速度:", "x: 0.00  y: 0.00  z: 1.00"),
@@ -421,29 +232,25 @@ class IntegratedVMApp:
             ("光线:", "---"),
             ("声音:", "---"),
             ("WiFi:", "未连接"),
-            ("摄像头:", "未连接"),
-            ("麦克风:", "未连接"),
+            ("摄像头:", "❌ 未连接"),
+            ("麦克风:", "❌ 未连接"),
         ]
         self.sensor_vars = []
-        for i, (label, default) in enumerate(sensor_items):
-            row = i // 2
-            col = i % 2
-            cell = tk.Frame(sensor_grid, bg=t.BG_CARD)
-            cell.grid(row=row, column=col, sticky="w", padx=6, pady=2)
-            tk.Label(cell, text=label, fg=t.FG_DIM, bg=t.BG_CARD,
-                     font=("Segoe UI", 8)).pack(side=tk.LEFT)
+        for label, default in sensor_items:
+            row = ttk.Frame(sensor_frame)
+            row.pack(fill=tk.X, pady=1)
+            ttk.Label(row, text=label, width=8, font=("Arial", 8)).pack(side=tk.LEFT)
             var = tk.StringVar(value=default)
             self.sensor_vars.append(var)
-            tk.Label(cell, textvariable=var, fg=t.FG, bg=t.BG_CARD,
-                     font=("Consolas", 8)).pack(side=tk.LEFT, padx=(4, 0))
+            ttk.Label(row, textvariable=var, font=("Arial", 8)).pack(side=tk.LEFT)
 
     def _redraw_oled(self, buffer):
+        """文本模式OLED显示"""
         text_lines = shared_state.get_oled_text()
         display_text = "\n".join(text_lines)
         self.oled_text.config(text=display_text)
 
     def _update_rgb_display(self, colors):
-        t = self.theme
         for i, color in enumerate(colors):
             hex_color = '#{:02x}{:02x}{:02x}'.format(color[0], color[1], color[2])
             self._rgb_canvas.itemconfig(self.rgb_indicators[i], fill=hex_color)
@@ -452,21 +259,15 @@ class IntegratedVMApp:
         current = shared_state.get_button(btn)
         new_state = not current
         shared_state.set_button(btn, new_state)
-        t = self.theme
-        btn_widget = getattr(self, f'btn_{btn.lower()}')
-        if new_state:
-            btn_widget.config(bg=t.ACCENT, fg=t.BG)
-        else:
-            btn_widget.config(bg=t.BUTTON_BG, fg=t.FG)
+        style = 'Pressed.TButton' if new_state else 'TButton'
+        getattr(self, f'btn_{btn.lower()}').configure(style=style)
 
     def _set_touch(self, label, state):
         shared_state.set_touch(label, state)
-        t = self.theme
-        color = t.ACCENT if state else t.RGB_OFF
+        color = "#2196F3" if state else "#555"
         self._touch_canvas.itemconfig(self.touch_indicators[label], fill=color)
 
     def _update_sensor_display(self):
-        t = self.theme
         accel, gyro, mag, light, sound = shared_state.get_sensors()
         wifi_connected, wifi_ssid = shared_state.get_wifi()
         self.sensor_vars[0].set(f"x: {accel['x']:.2f}  y: {accel['y']:.2f}  z: {accel['z']:.2f}")
@@ -476,8 +277,8 @@ class IntegratedVMApp:
         self.sensor_vars[4].set(str(sound))
         self.sensor_vars[5].set(f"已连接: {wifi_ssid}" if wifi_connected else "未连接")
         if pc_sensors is not None:
-            cam_status = "已连接" if pc_sensors.is_camera_available() else "未连接"
-            mic_status = "已连接" if pc_sensors.is_audio_available() else "未连接"
+            cam_status = "✅ 已连接" if pc_sensors.is_camera_available() else "❌ 未连接"
+            mic_status = "✅ 已连接" if pc_sensors.is_audio_available() else "❌ 未连接"
             self.sensor_vars[6].set(cam_status)
             self.sensor_vars[7].set(mic_status)
 
@@ -486,7 +287,9 @@ class IntegratedVMApp:
             if self._running:
                 shared_state.update_sensors()
                 self._update_sensor_display()
+                # 更新 OLED（文本模式显示，PinPong/mPython 都兼容）
                 self._redraw_oled(None)
+                # 像素缓冲区更新（保留给未来像素模式使用）
                 oled_buf = shared_state.get_oled_buffer()
                 if oled_buf and any(b != 0 for b in oled_buf):
                     self._redraw_oled(oled_buf)
@@ -497,68 +300,38 @@ class IntegratedVMApp:
         self.root.after(500, poll)
 
     def _create_editor_panel(self, parent):
-        t = self.theme
-        notebook = ttk.Notebook(parent)
-        notebook.pack(fill=tk.BOTH, expand=True)
+        self._code_label = ttk.LabelFrame(parent, text="代码编辑区（从Mind+复制代码粘贴到这里运行）", padding=3)
+        code_frame = self._code_label
+        code_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 3))
 
-        code_tab = tk.Frame(notebook, bg=t.BG)
-        notebook.add(code_tab, text="  代码编辑  ")
-
-        code_header = tk.Frame(code_tab, bg=t.BG_CARD, height=32)
-        code_header.pack(fill=tk.X, padx=(0, 4), pady=(0, 0))
-        code_header.pack_propagate(False)
-        tk.Label(code_header, text="main.py", fg=t.FG, bg=t.BG_CARD,
-                 font=("Segoe UI", 10)).pack(side=tk.LEFT, padx=12)
-        tk.Label(code_header, text="MicroPython", fg=t.FG_DIM, bg=t.BG_CARD,
-                 font=("Segoe UI", 8)).pack(side=tk.RIGHT, padx=12)
-
-        self.code_text = scrolledtext.ScrolledText(
-            code_tab, width=80, height=22,
-            font=('Consolas', 11), wrap=tk.NONE,
-            bg=t.EDITOR_BG, fg=t.EDITOR_FG,
-            insertbackground=t.FG,
-            selectbackground=t.ACCENT_DIM, selectforeground=t.FG,
-            highlightthickness=1, highlightbackground=t.BORDER,
-            highlightcolor=t.ACCENT,
-            padx=12, pady=10,
-            undo=True)
-        self.code_text.pack(fill=tk.BOTH, expand=True, padx=(0, 4), pady=0)
-
+        self.code_text = scrolledtext.ScrolledText(code_frame, width=80, height=22,
+                                                    font=('Consolas', 10), wrap=tk.NONE)
+        self.code_text.pack(fill=tk.BOTH, expand=True, padx=3, pady=3)
         self._insert_default_code()
 
-        output_tab = tk.Frame(notebook, bg=t.BG)
-        notebook.add(output_tab, text="  运行输出  ")
+        output_frame = ttk.LabelFrame(parent, text="运行输出", padding=3)
+        output_frame.pack(fill=tk.BOTH, expand=True)
 
-        output_header = tk.Frame(output_tab, bg=t.BG_CARD, height=32)
-        output_header.pack(fill=tk.X, padx=(0, 4), pady=(0, 0))
-        output_header.pack_propagate(False)
-        tk.Label(output_header, text="Console", fg=t.FG, bg=t.BG_CARD,
-                 font=("Segoe UI", 10)).pack(side=tk.LEFT, padx=12)
-        tk.Button(output_header, text="清空", command=self.clear_output,
-                  bg=t.BUTTON_BG, fg=t.FG, activebackground=t.BUTTON_HOVER,
-                  activeforeground=t.FG, font=("Segoe UI", 8),
-                  relief=tk.FLAT, bd=0, padx=8, pady=2, cursor="hand2").pack(side=tk.RIGHT, padx=8)
-
-        self.output_text = scrolledtext.ScrolledText(
-            output_tab, width=80, height=8,
-            font=('Consolas', 10), state=tk.DISABLED, wrap=tk.WORD,
-            bg=t.OUTPUT_BG, fg=t.OUTPUT_FG,
-            insertbackground=t.FG,
-            highlightthickness=1, highlightbackground=t.BORDER,
-            padx=12, pady=10)
-        self.output_text.pack(fill=tk.BOTH, expand=True, padx=(0, 4), pady=0)
+        self.output_text = scrolledtext.ScrolledText(output_frame, width=80, height=8,
+                                                      font=('Consolas', 10), state=tk.DISABLED, wrap=tk.WORD)
+        self.output_text.pack(fill=tk.BOTH, expand=True, padx=3, pady=3)
 
     def _insert_default_code(self):
-        self.code_text.insert(tk.END, """# mPython Virtual Board
-# 在Mind+中编程，在这里运行
+        self.code_text.insert(tk.END, """/*! 
+  * MindPlus 
+  * mpython 
+  * 
+  */ 
+#include <MPython.h> 
 
-from mpython_sim import *
-
-while True:
-    oled.fill(0)
-    oled.DispChar("Hello mPython!", 0, 0, 1)
-    oled.show()
-    sleep_ms(500)""")
+// 主程序开始 
+void setup() { 
+    mPython.begin(); 
+} 
+void loop() { 
+    display.setCursorLine(1); 
+    display.printLine("Mind+");
+}""")
 
     # ────────── 文件操作 ──────────
 
@@ -608,10 +381,8 @@ while True:
             messagebox.showinfo("提示", "虚拟机已在运行")
             return
 
-        t = self.theme
-        self.add_output("启动虚拟掌控板...")
-        self.status_label.config(text="● 启动中...", fg=t.WARNING)
-        self._status_conn.config(text="  启动中...", fg=t.WARNING)
+        self.add_output("⏳ 启动虚拟掌控板（同一进程）...")
+        self.status_label.config(text="⏳ 启动中...", foreground="orange")
         self.vm_btn.config(text="⏳ 启动中...", state=tk.DISABLED)
 
         def _start():
@@ -627,7 +398,7 @@ while True:
                 import virtual_usb
                 virtual_usb.start_virtual_usb()
                 
-                bridge = virtual_usb.SerialToTCPBridge(tcp_port=7777, serial_port=_default_serial_port())
+                bridge = virtual_usb.SerialToTCPBridge(tcp_port=7777, serial_port='COM20')
                 bridge.start()
 
                 _vm_initialized = True
@@ -635,20 +406,17 @@ while True:
                 self.root.after(1000, self._on_vm_started)
             except Exception as e:
                 import traceback
-                self.root.after(0, lambda: self.add_output(f"启动失败: {e}"))
+                self.root.after(0, lambda: self.add_output(f"❌ 启动失败: {e}"))
                 self.root.after(0, lambda: self.add_output(traceback.format_exc()))
-                self.root.after(0, lambda: self.status_label.config(text="● 启动失败", fg=t.ERROR))
-                self.root.after(0, lambda: self._status_conn.config(text="  启动失败", fg=t.ERROR))
+                self.root.after(0, lambda: self.status_label.config(text="❌ 启动失败", foreground="red"))
                 self.root.after(0, lambda: self.vm_btn.config(text="▶ 启动虚拟机", state=tk.NORMAL))
 
         _vm_thread = threading.Thread(target=_start, daemon=True)
         _vm_thread.start()
 
     def _on_vm_started(self):
-        t = self.theme
-        self.add_output("虚拟掌控板启动成功！")
-        self.status_label.config(text="● 运行中", fg=t.SUCCESS)
-        self._status_conn.config(text="  虚拟机运行中", fg=t.SUCCESS)
+        self.add_output("✅ 虚拟掌控板启动成功！")
+        self.status_label.config(text="✅ 虚拟机运行中", foreground="green")
         self.vm_btn.config(text="⏹ 关闭虚拟机")
         self.conn_btn.config(state=tk.NORMAL)
         self.root.after(2000, self._auto_connect)
@@ -660,7 +428,6 @@ while True:
 
     def stop_vm(self):
         global _vm_initialized, _vm_thread
-        t = self.theme
         if self.vm_socket:
             try:
                 self.vm_socket.send(b"\x02")
@@ -671,24 +438,26 @@ while True:
             self.vm_socket = None
         self.connect_status = False
         _vm_initialized = False
+        # 停止电脑传感器
         if pc_sensors is not None:
             pc_sensors.stop()
         shared_state.set_use_real_sensors(False)
+        # 停止USB服务器
         try:
             import virtual_usb
             virtual_usb.stop_virtual_usb()
         except:
             pass
+        # 停止VM循环
         try:
             import mpython_vm
             mpython_vm._running = False
         except:
             pass
-        self.status_label.config(text="● 未连接", fg=t.ERROR)
-        self._status_conn.config(text="  未连接", fg=t.ERROR)
+        self.status_label.config(text="🔌 未连接", foreground="red")
         self.vm_btn.config(text="▶ 启动虚拟机")
-        self.conn_btn.config(text="连接", state=tk.DISABLED)
-        self.add_output("虚拟机已关闭")
+        self.conn_btn.config(text="🔗 连接", state=tk.DISABLED)
+        self.add_output("⏹ 虚拟机已关闭")
 
     # ────────── 连接管理 ──────────
 
@@ -702,17 +471,15 @@ while True:
             self.connect_vm()
 
     def connect_vm(self):
-        t = self.theme
-        self.add_output("连接虚拟机...")
+        self.add_output("⏳ 连接虚拟机...")
         try:
             self.vm_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.vm_socket.settimeout(5.0)
             self.vm_socket.connect(('127.0.0.1', VM_PORT))
             self.connect_status = True
-            self.status_label.config(text="● 已连接", fg=t.SUCCESS)
-            self._status_conn.config(text="  已连接", fg=t.SUCCESS)
-            self.conn_btn.config(text="断开")
-            self.add_output("已连接到虚拟掌控板")
+            self.status_label.config(text="✅ 已连接", foreground="green")
+            self.conn_btn.config(text="🔗 断开")
+            self.add_output("✅ 已连接到虚拟掌控板")
 
             self.vm_socket.send(b"\r\n\x03\x03")
             time.sleep(0.2)
@@ -732,17 +499,15 @@ while True:
                     break
 
             if b"raw REPL" in response:
-                self.add_output("REPL模式已就绪")
+                self.add_output("✅ REPL模式已就绪")
             else:
-                self.add_output("连接状态: " + response[:50].decode('utf-8', errors='ignore'))
+                self.add_output("⚠️ 连接状态: " + response[:50].decode('utf-8', errors='ignore'))
         except Exception as e:
             messagebox.showerror("连接失败", f"无法连接到虚拟机: {e}\n请确保虚拟机已启动!")
             self.connect_status = False
-            self.status_label.config(text="● 未连接", fg=t.ERROR)
-            self._status_conn.config(text="  未连接", fg=t.ERROR)
+            self.status_label.config(text="🔌 未连接", foreground="red")
 
     def disconnect_vm(self):
-        t = self.theme
         if self.vm_socket:
             try:
                 self.vm_socket.send(b"\x02")
@@ -752,10 +517,9 @@ while True:
                 pass
             self.vm_socket = None
         self.connect_status = False
-        self.status_label.config(text="● 未连接", fg=t.ERROR)
-        self._status_conn.config(text="  未连接", fg=t.ERROR)
-        self.conn_btn.config(text="连接")
-        self.add_output("已断开连接")
+        self.status_label.config(text="🔌 未连接", foreground="red")
+        self.conn_btn.config(text="🔗 连接")
+        self.add_output("✓ 已断开连接")
 
     # ────────── 代码执行 ──────────
 
@@ -938,19 +702,17 @@ while True:
     # ────────── 状态检查 ──────────
 
     def _check_vm_status(self):
-        t = self.theme
         if self._running:
             is_running = self._check_port(VM_PORT)
             if not self.connect_status:
                 if is_running:
-                    self.status_label.config(text="● 虚拟机运行中", fg=t.INFO)
+                    self.status_label.config(text="🔍 虚拟机运行中", foreground="blue")
                     self.conn_btn.config(state=tk.NORMAL)
                     if self.vm_btn.cget('text') == '▶ 启动虚拟机':
                         self.vm_btn.config(text="⏹ 关闭虚拟机")
                 else:
                     if self.vm_btn.cget('text') != '▶ 启动虚拟机':
-                        self.status_label.config(text="● 未连接", fg=t.ERROR)
-                        self._status_conn.config(text="  未连接", fg=t.ERROR)
+                        self.status_label.config(text="🔌 未连接", foreground="red")
                         self.conn_btn.config(state=tk.DISABLED)
             self.root.after(3000, self._check_vm_status)
 
@@ -973,9 +735,9 @@ while True:
         settings_window.transient(self.root)
         settings_window.grab_set()
 
-        ttk.Label(settings_window, text="Mind+ 连接配置", font=("Segoe UI", 14, "bold")).pack(pady=10)
+        ttk.Label(settings_window, text="Mind+ 连接配置", font=("Arial", 14, "bold")).pack(pady=10)
 
-        ttk.Label(settings_window, text="连接方式:", font=("Segoe UI", 10)).pack(anchor=tk.W, padx=20)
+        ttk.Label(settings_window, text="连接方式:", font=("Arial", 10)).pack(anchor=tk.W, padx=20)
         
         frame1 = ttk.Frame(settings_window)
         frame1.pack(fill=tk.X, padx=20, pady=5)
@@ -991,15 +753,14 @@ while True:
         serial_frame.pack(fill=tk.X, padx=20, pady=5)
         
         ttk.Label(serial_frame, text="串口号:").pack(side=tk.LEFT)
-        self._serial_port_var = tk.StringVar(value=_default_serial_port())
+        self._serial_port_var = tk.StringVar(value="COM20")
         ttk.Entry(serial_frame, textvariable=self._serial_port_var, width=10).pack(side=tk.LEFT, padx=5)
         
         ttk.Label(serial_frame, text="波特率:").pack(side=tk.LEFT, padx=10)
         ttk.Combobox(serial_frame, values=["9600", "19200", "38400", "57600", "115200"], 
                     width=8, state="readonly").pack(side=tk.LEFT)
         
-        detect_btn_text = "检测com0com" if IS_WINDOWS else "检测socat"
-        ttk.Button(serial_frame, text=detect_btn_text, command=self._detect_virtual_serial).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(serial_frame, text="检测com0com", command=self._detect_com0com).pack(side=tk.RIGHT, padx=5)
 
         tcp_frame = ttk.LabelFrame(settings_window, text="TCP配置", padding=10)
         tcp_frame.pack(fill=tk.X, padx=20, pady=5)
@@ -1007,7 +768,7 @@ while True:
         ttk.Label(tcp_frame, text="端口号:").pack(side=tk.LEFT)
         self._tcp_port_var = tk.StringVar(value="7777")
         ttk.Entry(tcp_frame, textvariable=self._tcp_port_var, width=10).pack(side=tk.LEFT, padx=5)
-        ttk.Label(tcp_frame, text=f"连接地址: 127.0.0.1:7777", font=("Segoe UI", 8), foreground=self.theme.FG_DIM).pack(side=tk.RIGHT)
+        ttk.Label(tcp_frame, text=f"连接地址: 127.0.0.1:7777", font=("Arial", 8), foreground="gray").pack(side=tk.RIGHT)
 
         info_frame = ttk.LabelFrame(settings_window, text="设备信息", padding=10)
         info_frame.pack(fill=tk.X, padx=20, pady=5)
@@ -1031,10 +792,7 @@ while True:
         guide_text.insert(tk.END, "  1. 确保虚拟机已启动\n")
         guide_text.insert(tk.END, "  2. 点击「启动Mind+服务」\n")
         guide_text.insert(tk.END, "  3. 在Mind+中选择「上传到设备」\n")
-        if IS_WINDOWS:
-            guide_text.insert(tk.END, f"  4. 选择显示的串口（如 {_default_host_port()}）\n\n")
-        else:
-            guide_text.insert(tk.END, f"  4. 选择显示的串口（如 {_default_host_port()}）\n\n")
+        guide_text.insert(tk.END, "  4. 选择显示的串口（如 COM19）\n\n")
         guide_text.insert(tk.END, "方法2 (TCP直连):\n")
         guide_text.insert(tk.END, "  仅当Mind+支持网络连接时使用\n")
         guide_text.insert(tk.END, "  1. 在Mind+中选择网络连接\n")
@@ -1055,57 +813,44 @@ while True:
         mode = self._mindplus_mode.get()
         self.add_output(f"📋 Mind+连接模式: {'TCP直连' if mode == 'tcp' else '串口连接'}")
 
-    def _detect_virtual_serial(self):
-        import shutil
-        if IS_WINDOWS:
-            paths = [
-                r"C:\Program Files\com0com\setupc.exe",
-                r"C:\Program Files (x86)\com0com\setupc.exe",
-            ]
-            found = any(os.path.exists(p) for p in paths)
-            if found:
-                messagebox.showinfo("检测结果", "✅ com0com已安装\n可以使用串口连接方式。")
-            else:
-                result = messagebox.askyesno("com0com未安装", "❌ 未找到com0com虚拟串口驱动\n\n是否自动下载安装？")
-                if result:
-                    self._install_virtual_serial()
-        else:
-            socat = shutil.which('socat')
-            if socat:
-                messagebox.showinfo("检测结果", f"✅ socat已安装\n路径: {socat}\n\n可以使用串口连接方式。")
-            else:
-                result = messagebox.askyesno("socat未安装", "❌ 未找到socat虚拟串口工具\n\n是否查看安装说明？")
-                if result:
-                    if IS_MACOS:
-                        messagebox.showinfo("安装说明", "请使用 Homebrew 安装 socat:\n\nbrew install socat")
-                    else:
-                        messagebox.showinfo("安装说明", "请使用包管理器安装 socat:\n\nsudo apt install socat")
+    def _detect_com0com(self):
+        import os
+        paths = [
+            r"C:\Program Files\com0com\setupc.exe",
+            r"C:\Program Files (x86)\com0com\setupc.exe",
+            r"C:\Program Files\com0com\setupc64.exe",
+            r"C:\Program Files (x86)\com0com\setupc64.exe"
+        ]
+        found = False
+        for path in paths:
+            if os.path.exists(path):
+                found = True
+                messagebox.showinfo("检测结果", f"✅ com0com已安装\n路径: {path}\n\n可以使用串口连接方式。")
+                break
+        if not found:
+            result = messagebox.askyesno("com0com未安装", "❌ 未找到com0com虚拟串口驱动\n\n是否自动下载安装？")
+            if result:
+                self._install_com0com()
     
-    def _install_virtual_serial(self):
-        if IS_WINDOWS:
-            try:
-                self.add_output("⏳ 正在下载安装com0com...")
-                import mindplus_usb
-                bridge = mindplus_usb.MindPlusUSBBridge()
-                success = bridge._find_com0com()
-                if success:
-                    self.add_output("✅ com0com安装成功!")
-                    messagebox.showinfo("安装成功",
-                        f"✅ com0com虚拟串口驱动安装成功!\n\n已创建虚拟串口对: "
-                        f"{_default_host_port()} ↔ {_default_serial_port()}\n\n"
-                        f"Mind+可连接 {_default_host_port()} 端口")
-                else:
-                    self.add_output("❌ com0com安装失败，请手动安装")
-                    messagebox.showwarning("安装失败",
-                        "❌ 自动安装失败\n\n请手动下载安装:\nhttps://sourceforge.net/projects/com0com/\n\n或使用管理员权限重新运行程序")
-            except Exception as e:
-                self.add_output(f"❌ 安装com0com出错: {e}")
-                messagebox.showerror("安装错误", f"安装com0com时发生错误: {e}")
-        else:
-            messagebox.showinfo("安装说明",
-                "请手动安装 socat:\n\n"
-                + ("macOS: brew install socat\n\n" if IS_MACOS else "Linux: sudo apt install socat\n\n")
-                + "安装完成后重新启动本程序即可自动创建虚拟串口对。")
+    def _install_com0com(self):
+        try:
+            self.add_output("⏳ 正在下载安装com0com...")
+            
+            import mindplus_usb
+            bridge = mindplus_usb.MindPlusUSBBridge()
+            
+            success = bridge._find_com0com()
+            
+            if success:
+                self.add_output("✅ com0com安装成功!")
+                messagebox.showinfo("安装成功", "✅ com0com虚拟串口驱动安装成功!\n\n已创建虚拟串口对: COM19 ↔ COM20\n\nMind+可连接 COM19 端口")
+            else:
+                self.add_output("❌ com0com安装失败，请手动安装")
+                messagebox.showwarning("安装失败", "❌ 自动安装失败\n\n请手动下载安装:\nhttps://sourceforge.net/projects/com0com/\n\n或使用管理员权限重新运行程序")
+                
+        except Exception as e:
+            self.add_output(f"❌ 安装com0com出错: {e}")
+            messagebox.showerror("安装错误", f"安装com0com时发生错误: {e}")
 
     def _start_mindplus_services(self):
         try:
@@ -1122,7 +867,7 @@ while True:
                 self.add_output(f"✅ Mind+串口桥接服务已启动 ({serial_port})")
             
             self._mindplus_services_running = True
-            self.mindplus_status.config(text="Mind+: 运行中", fg=self.theme.SUCCESS)
+            self.mindplus_status.config(text="🖥️ Mind+: 运行中", foreground="green")
             
         except Exception as e:
             self.add_output(f"❌ 启动Mind+服务失败: {e}")
@@ -1134,7 +879,7 @@ while True:
             mindplus_usb.stop_mindplus_services()
             self.add_output("⏹ Mind+服务已停止")
             self._mindplus_services_running = False
-            self.mindplus_status.config(text="Mind+: 已停止", fg=self.theme.WARNING)
+            self.mindplus_status.config(text="🖥️ Mind+: 已停止", foreground="orange")
         except Exception as e:
             self.add_output(f"❌ 停止Mind+服务失败: {e}")
 
@@ -1949,24 +1694,35 @@ sleep_us(us)
     # ────────── 模式切换 ──────────
 
     def _set_mode(self, mode):
-        t = self.theme
+        """设置当前模式"""
         if mode != self._current_mode.get():
             self._current_mode.set(mode)
 
     def _on_mode_changed(self):
-        t = self.theme
+        """模式切换时的界面更新"""
         mode = self._current_mode.get()
 
+        # 1. 更新模式指示器
         if mode == "mpython":
-            self.mode_indicator.config(text="● mPython", fg=t.ACCENT)
-            self.mp_btn.config(bg=t.ACCENT, fg=t.BG)
-            self.pp_btn.config(bg=t.BUTTON_BG, fg=t.FG)
-            self._status_mode.config(text="  mPython 模式", fg=t.ACCENT)
+            self.mode_indicator.config(text="● mPython", foreground="#2196F3")
+            self.mp_btn.config(text="▸ mPython")
+            self.pp_btn.config(text="  PinPong")
         else:
-            self.mode_indicator.config(text="● PinPong", fg=t.WARNING)
-            self.mp_btn.config(bg=t.BUTTON_BG, fg=t.FG)
-            self.pp_btn.config(bg=t.WARNING, fg=t.BG)
-            self._status_mode.config(text="  PinPong 模式", fg=t.WARNING)
+            self.mode_indicator.config(text="● PinPong", foreground="#FF5722")
+            self.mp_btn.config(text="  mPython")
+            self.pp_btn.config(text="▸ PinPong")
+
+        # 2. 更新硬件面板标题
+        if mode == "mpython":
+            self._board_label.config(text="mPython掌控板")
+        else:
+            self._board_label.config(text="PinPong掌控板")
+
+        # 3. 更新代码编辑区提示
+        if mode == "mpython":
+            self._code_label.config(text="代码编辑区（从Mind+复制代码粘贴到这里运行）")
+        else:
+            self._code_label.config(text="代码编辑区（使用PinPong库编写代码）")
 
         # 4. 更新默认代码
         self.code_text.delete("1.0", tk.END)
@@ -2222,8 +1978,8 @@ def main():
     show_splash()
     
     root = tk.Tk()
-    root.title("mPython Virtual Board")
-    root.geometry("1360x840")
+    root.title("mPython掌控板虚拟机 - 教育版")
+    root.geometry("1300x800")
     root.minsize(1100, 700)
     
     app = IntegratedVMApp(root)
