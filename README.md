@@ -1,4 +1,22 @@
-# mPython Virtual Machine
+# mPython Virtual Board 教学仿真器（双版本）
+
+> **mPython 掌控板仿真教学解决方案** —— 提供桌面版与 Web 版两套形态，让青少年无需物理硬件即可完成掌控板编程学习。
+
+## 版本总览
+
+| 版本 | 目录 | 技术栈 | 定位 |
+| --- | --- | --- | --- |
+| **桌面版**（Tkinter） | 项目根目录 | Python + Tkinter + Socket | 悬浮显示窗口 + 服务器/客户端架构，配合 Thonny/IDLE 使用 |
+| **Web 版**（教学工作台） | [`mpython-vm-web/`](mpython-vm-web/README.md) | pywebview + Vue 3 + Monaco | 双模式教学工作台：内置编译器、AI 改写、真实传感器连接 |
+
+两套版本共享同一套硬件仿真模型（OLED、RGB、按键、触摸、传感器），可根据教学场景选择：
+
+- **桌面版**适合在 Thonny/IDLE 中写代码、配合悬浮掌控板观察效果的经典工作流；
+- **Web 版**是集成度更高的一体化教学工作台（图形化转译 → 运行 → 硬件反馈 → AI 辅助改写），详见 [mpython-vm-web/README.md](mpython-vm-web/README.md)。
+
+---
+
+# 桌面版：mPython Virtual Machine（Tkinter）
 
 > **mPython掌控板虚拟机** —— 青少年学习掌控板的辅助工具，让学习掌控版无需物理硬件，随时随地探索创造！
 

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>mPython VM - Virtual Board</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="vendor/vue.global.prod.js"></script>
+    <script>
+        // 全局错误捕获：Vue/运行时报错时在页面上显示具体原因，避免白屏无法定位
+        window.addEventListener('error', function (event) {
+            var box = document.getElementById('fatal-error');
+            if (!box) return;
+            box.style.display = 'block';
+            box.textContent = '启动失败：' + (event.message || 'unknown error');
+        });
+    </script>
+</head>
+<body>
+<div id="app">
+    <div id="fatal-error" class="fatal-error" style="display:none"></div>
+    <div class="desktop-shell">
+        <div class="desktop-menubar">
+            <div class="menu-items">
+                <button class="menu-link" type="button">文件</button>
+                <button class="menu-link" type="button">虚拟机</button>
+                <button class="menu-link" type="button">代码</button>
+                <button class="menu-link" type="button">学习</button>
+                <button class="menu-link" type="button">帮助</button>
+            </div>
+            <div class="menubar-title">mPython 掌控板虚拟机 - 教育版</div>
+        </div>
+
+        <div class="desktop-toolbar">
+            <div class="toolbar-actions">
+                <button class="toolbar-btn toolbar-btn-primary" @click="runCode" :disabled="running">{{ t('run') }}</button>
+                <button class="toolbar-btn" @click="stopCode" :disabled="!running">{{ t('stop') }}</button>
+                <button class="toolbar-btn" @click="resetBoard">{{ t('reset') }}</button>
+                <button class="toolbar-btn" @click="openCode">{{ t('open') }}</button>
+                <button class="toolbar-btn" @click="saveCode">{{ t('save') }}</button>
+                <button class="toolbar-btn" @click="loadExample(true)">{{ t('example') }}</button>
+                <button class="toolbar-btn" @click="clearCode">{{ t('clear') }}</button>
+                <button class="toolbar-btn" @click="clearConsole">{{ t('clear_output') }}</button>
+                <button v-if="productMode === 'mindplus'" class="toolbar-btn" @click="transpileMindPlus">{{ t('transpile') }}</button>
+                <button v-if="productMode === 'teaching' && teachingMode === 'pinpong'" class="toolbar-btn" @click="bottomPanel = 'ai'">AI</button>
+            </div>
+
+            <div class="toolbar-meta">
+                <div class="toolbar-mode-group">
+                    <button class="toolbar-tab" :class="{ active: productMode === 'mindplus' }" @click="selectProductMode('mindplus')">Mind+</button>
+                    <button class="toolbar-tab" :class="{ active: productMode === 'teaching' && teachingMode === 'mpython' }" @click="selectTeachingMode('mpython')">mPython</button>
+                    <button class="toolbar-tab" :class="{ active: productMode === 'teaching' && teachingMode === 'pinpong' }" @click="selectTeachingMode('pinpong')">PinPong</button>
+                </div>
+                <span class="toolbar-status-simple">{{ connected ? t('connected') : t('disconnected') }}</span>
+                <span class="toolbar-status-simple">{{ running ? t('running_status') : t('ready_status') }}</span>
+                <select v-model="uiLanguage" class="toolbar-select">
+                    <option v-for="option in uiLanguageOptions" :key="option.value" :value="option.value">
+                        {{ option.label }}
+                    </option>
+                </select>
+            </div>
+        </div>
+
+        <main class="desktop-layout">
+            <aside class="device-sidebar">
+                <div class="sidebar-title">{{ currentModeLabel }}</div>
+
+                <section class="sidebar-module">
+                    <div class="module-title">OLED显示屏</div>
+                    <div class="oled-mini">
+                        <div class="oled-mini-frame">
+                            <canvas ref="oledCanvas" class="oled-mini-screen" width="128" height="64"></canvas>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="sidebar-module">
+                    <div class="module-title">RGB LED</div>
+                    <div class="rgb-mini">
+                        <div
+                            v-for="(color, idx) in state.rgb_colors"
+                            :key="idx"
+                            class="rgb-mini-led"
+                            :style="getLedStyle(color)"
+                        >
+                            <div class="rgb-mini-core"></div>
+                            <span class="rgb-mini-label">L{{ idx + 1 }}</span>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="sidebar-module">
+                    <div class="module-title">按键</div>
+                    <div class="button-mini-group">
+                        <button
+                            class="mini-rect-btn"
+                            :class="{ pressed: state.button_a }"
+                            @pointerdown.prevent="handleButtonPointerDown('A', $event)"
+                            @pointerup.prevent="handleButtonPointerUp('A', $event)"
+                            @pointercancel="handleButtonPointerUp('A', $event)"
+                            @pointerleave="handleButtonPointerLeave('A', $event)"
+                            @contextmenu.prevent
+                        >按键A</button>
+                        <button
+                            class="mini-rect-btn"
+                            :class="{ pressed: state.button_b }"
+                            @pointerdown.prevent="handleButtonPointerDown('B', $event)"
+                            @pointerup.prevent="handleButtonPointerUp('B', $event)"
+                            @pointercancel="handleButtonPointerUp('B', $event)"
+                            @pointerleave="handleButtonPointerLeave('B', $event)"
+                            @contextmenu.prevent
+                        >按键B</button>
+                    </div>
+                </section>
+
+                <section class="sidebar-module">
+                    <div class="module-title">触摸按键</div>
+                    <div class="touch-mini-group">
+                        <button
+                            v-for="pad in touchPads"
+                            :key="pad.key"
+                            class="mini-touch-btn"
+                            :class="{ pressed: state.touch[pad.key] }"
+                            @pointerdown.prevent="handleTouchPointerDown(pad.key, $event)"
+                            @pointerup.prevent="handleTouchPointerUp(pad.key, $event)"
+                            @pointercancel="handleTouchPointerUp(pad.key, $event)"
+                            @pointerleave="handleTouchPointerLeave(pad.key, $event)"
+                            @contextmenu.prevent
+                        >
+                            {{ pad.key }}
+                        </button>
+                    </div>
+                </section>
+
+                <section class="sidebar-module sensor-module">
+                    <div class="module-title">传感器</div>
+                    <div class="sensor-source-tabs">
+                        <button class="sensor-source-tab" :class="{ active: sensorSource === 'device' }" @click="selectSensorSource('device')">真实传感器</button>
+                        <button class="sensor-source-tab" :class="{ active: sensorSource === 'manual' }" @click="selectSensorSource('manual')">手动控制</button>
+                    </div>
+                    <div class="sensor-status-panel">
+                        <div class="sensor-status-line">
+                            <span class="sensor-status-label">当前来源</span>
+                            <span class="sensor-status-value">{{ sensorSourceLabel }}</span>
+                        </div>
+                        <div class="sensor-status-line">
+                            <span class="sensor-status-label">连接状态</span>
+                            <span class="sensor-status-value">{{ sensorConnectionText }}</span>
+                        </div>
+                    </div>
+                    <div v-if="sensorSource === 'device'" class="sensor-connect-row">
+                        <select class="sensor-port-select" v-model="selectedPort" :disabled="sensorDeviceConnected || sensorConnecting">
+                            <option value="">自动检测</option>
+                            <option v-for="p in sensorPorts" :key="p" :value="p">{{ p }}</option>
+                        </select>
+                        <button class="mini-action-btn" @click="scanSensorPorts" :disabled="sensorDeviceConnected || sensorConnecting">扫描</button>
+                        <button class="mini-action-btn" @click="toggleSensorDevice" :disabled="sensorConnecting">
+                            {{ sensorDeviceConnected ? '断开' : '连接' }}
+                        </button>
+                    </div>
+                    <div v-if="sensorSource === 'device'" class="sensor-readout-grid">
+                        <div class="sensor-card">
+                            <div class="sensor-card-title">加速度</div>
+                            <div class="sensor-card-value">{{ formatSensorVector(state.accel, 2) }}</div>
+                        </div>
+                        <div class="sensor-card">
+                            <div class="sensor-card-title">陀螺仪</div>
+                            <div class="sensor-card-value">{{ formatSensorVector(state.gyro, 2) }}</div>
+                        </div>
+                        <div class="sensor-card">
+                            <div class="sensor-card-title">地磁</div>
+                            <div class="sensor-card-value">{{ formatSensorVector(state.mag, 0) }}</div>
+                        </div>
+                        <div class="sensor-card sensor-card-compact">
+                            <div class="sensor-card-title">光线</div>
+                            <div class="sensor-card-value">{{ formatSensorScalar(lightValue, 0) }}</div>
+                        </div>
+                        <div class="sensor-card sensor-card-compact">
+                            <div class="sensor-card-title">声音</div>
+                            <div class="sensor-card-value">{{ formatSensorScalar(soundValue, 0) }}</div>
+                        </div>
+                    </div>
+                    <div v-if="sensorSource === 'device'" class="sensor-device-note">
+                        点击"连接"后实时读取真实掌控板传感器数据。设备端上报脚本见 tools/sensor_report.py。
+                    </div>
+                    <div v-else class="sensor-manual-note">
+                        已切换到手动控制，下面的滑块和输入框会直接写入当前传感器状态。
+                    </div>
+                    <div v-if="sensorSource === 'manual'" class="sensor-advanced-panel">
+                        <div class="manual-control-section">
+                            <div class="manual-section-head">
+                                <div class="manual-section-title">环境值</div>
+                                <div class="manual-inline-actions">
+                                    <button class="mini-action-btn" @click="setEnvPreset(0)">0</button>
+                                    <button class="mini-action-btn" @click="setEnvPreset(2048)">中</button>
+                                    <button class="mini-action-btn" @click="setEnvPreset(4095)">满</button>
+                                </div>
+                            </div>
+                            <div class="manual-pick-row">
+                                <label>{{ t('light_sensor') }}</label>
+                                <button class="sensor-value-btn" @click="openSensorPopup($event, 'light')">{{ lightValue }}</button>
+                            </div>
+                            <div class="manual-pick-row">
+                                <label>{{ t('sound_sensor') }}</label>
+                                <button class="sensor-value-btn" @click="openSensorPopup($event, 'sound')">{{ soundValue }}</button>
+                            </div>
+                        </div>
+
+                        <div class="manual-control-section">
+                            <div class="manual-section-head">
+                                <div class="manual-section-title">加速度</div>
+                                <div class="manual-inline-actions">
+                                    <button class="mini-action-btn" @click="applyVectorPreset('accel', 'flat')">平放</button>
+                                    <button class="mini-action-btn" @click="applyVectorPreset('accel', 'tilt_x')">左右倾</button>
+                                    <button class="mini-action-btn" @click="resetVector('accel')">归零</button>
+                                </div>
+                            </div>
+                            <div class="manual-pick-row" v-for="axis in ['x', 'y', 'z']" :key="'sa'+axis">
+                                <label>{{ axis.toUpperCase() }}</label>
+                                <button class="sensor-value-btn" @click="openSensorPopup($event, 'accel', axis)">{{ formatSensorScalar(state.accel[axis], 2) }}</button>
+                            </div>
+                        </div>
+
+                        <div class="manual-control-section">
+                            <div class="manual-section-head">
+                                <div class="manual-section-title">陀螺仪</div>
+                                <div class="manual-inline-actions">
+                                    <button class="mini-action-btn" @click="applyVectorPreset('gyro', 'left')">左旋</button>
+                                    <button class="mini-action-btn" @click="applyVectorPreset('gyro', 'right')">右旋</button>
+                                    <button class="mini-action-btn" @click="resetVector('gyro')">归零</button>
+                                </div>
+                            </div>
+                            <div class="manual-pick-row" v-for="axis in ['x', 'y', 'z']" :key="'sg'+axis">
+                                <label>{{ axis.toUpperCase() }}</label>
+                                <button class="sensor-value-btn" @click="openSensorPopup($event, 'gyro', axis)">{{ formatSensorScalar(state.gyro[axis], 2) }}</button>
+                            </div>
+                        </div>
+
+                        <div class="manual-control-section">
+                            <div class="manual-section-head">
+                                <div class="manual-section-title">地磁</div>
+                                <div class="manual-inline-actions">
+                                    <button class="mini-action-btn" @click="applyVectorPreset('mag', 'north')">北向</button>
+                                    <button class="mini-action-btn" @click="applyVectorPreset('mag', 'south')">南向</button>
+                                    <button class="mini-action-btn" @click="resetVector('mag')">归零</button>
+                                </div>
+                            </div>
+                            <div class="manual-pick-row" v-for="axis in ['x', 'y', 'z']" :key="'sm'+axis">
+                                <label>{{ axis.toUpperCase() }}</label>
+                                <button class="sensor-value-btn" @click="openSensorPopup($event, 'mag', axis)">{{ formatSensorScalar(state.mag[axis], 0) }}</button>
+                            </div>
+                        </div>
+
+                        <div class="manual-control-section">
+                            <div class="manual-section-head">
+                                <div class="manual-section-title">{{ t('buzzer') }}</div>
+                                <div class="manual-inline-actions">
+                                    <button class="mini-action-btn" @click="updateBuzzerValue(440)">440</button>
+                                    <button class="mini-action-btn" @click="updateBuzzerValue(1000)">1000</button>
+                                    <button class="mini-action-btn" @click="playBuzzer">{{ t('play') }}</button>
+                                </div>
+                            </div>
+                            <div class="manual-pick-row">
+                                <label>Hz</label>
+                                <button class="sensor-value-btn" @click="openSensorPopup($event, 'buzzer')">{{ buzzerFreq }}</button>
+                            </div>
+                        </div>
+
+                        <div class="manual-action-bar">
+                            <div class="manual-action-group">
+                                <button class="mini-action-btn" @click="simulateShake('x')">{{ t('shake_x') }}</button>
+                                <button class="mini-action-btn" @click="simulateShake('y')">{{ t('shake_y') }}</button>
+                                <button class="mini-action-btn" @click="simulateShake('z')">{{ t('shake_z') }}</button>
+                            </div>
+                            <button class="toolbar-btn" @click="clearOled">{{ t('clear_screen') }}</button>
+                        </div>
+
+                        <div v-if="sensorPopup.visible" class="sensor-popup" :style="{ left: sensorPopup.x + 'px', top: sensorPopup.y + 'px' }" @pointerdown.stop>
+                            <div class="sensor-popup-title">{{ sensorPopup.title }}</div>
+                            <input class="sensor-popup-slider" type="range" :min="sensorPopup.min" :max="sensorPopup.max" :step="sensorPopup.step" :value="sensorPopup.value" @input="updatePopupValue($event.target.value)">
+                            <div class="sensor-popup-row">
+                                <input class="sensor-popup-input" type="number" :min="sensorPopup.min" :max="sensorPopup.max" :step="sensorPopup.step" :value="sensorPopup.value" @input="updatePopupValue($event.target.value)">
+                                <button class="mini-action-btn" @click="updatePopupValue(0)">归零</button>
+                                <button class="mini-action-btn" @click="closeSensorPopup">关闭</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </aside>
+
+            <section class="desktop-workspace">
+                <div class="workspace-caption">
+                    <div class="workspace-caption-title">{{ editorTitle }}</div>
+                    <div class="workspace-caption-subtitle">{{ currentEditorHint }}</div>
+                </div>
+
+                <section class="editor-surface">
+                    <div class="editor-surface-head">
+                        <div class="editor-path">{{ currentRuntimeLabel }}</div>
+                        <div class="editor-head-actions">
+                            <button class="toolbar-btn" @click="loadExample(true)">{{ t('example') }}</button>
+                            <button v-if="productMode === 'mindplus'" class="toolbar-btn" @click="transpileMindPlus">{{ t('transpile') }}</button>
+                        </div>
+                    </div>
+                    <div class="editor-surface-body">
+                        <div class="editor-container desktop-editor" id="editor"></div>
+                    </div>
+                </section>
+
+                <section class="bottom-panel">
+                    <div class="bottom-panel-tabs">
+                        <button class="bottom-tab" :class="{ active: bottomPanel === 'console' }" @click="bottomPanel = 'console'">运行输出</button>
+                        <button v-if="productMode === 'mindplus'" class="bottom-tab" :class="{ active: bottomPanel === 'transpile' }" @click="bottomPanel = 'transpile'">转译结果</button>
+                        <button v-if="productMode === 'teaching' && teachingMode === 'pinpong'" class="bottom-tab" :class="{ active: bottomPanel === 'ai' }" @click="bottomPanel = 'ai'">AI 改写</button>
+                        <div class="bottom-panel-actions">
+                            <button v-if="bottomPanel === 'console'" class="toolbar-btn" @click="copyConsole">{{ t('copy') }}</button>
+                            <button v-if="bottomPanel === 'console'" class="toolbar-btn" @click="clearConsole">{{ t('clear') }}</button>
+                            <button v-if="bottomPanel === 'ai'" class="toolbar-btn" @click="refreshAiStatus">{{ t('refresh_status') }}</button>
+                        </div>
+                    </div>
+
+                    <div v-if="bottomPanel === 'console'" class="console-output desktop-console">
+                        <div v-if="!consoleOutput.length" class="panel-empty-state">
+                            <div class="panel-empty-title">等待运行输出</div>
+                            <div class="panel-empty-text">运行代码后，日志、报错和课堂提示会显示在这里。</div>
+                        </div>
+                        <div v-for="line in consoleOutput" :key="line.id" class="console-line" :class="line.type">
+                            <span class="console-prompt">></span>
+                            <span class="console-text">{{ line.text }}</span>
+                        </div>
+                    </div>
+
+                    <pre v-else-if="bottomPanel === 'transpile'" class="helper-preview helper-preview-panel">{{ transpiledCode || t('transpile_preview_empty') }}</pre>
+
+                    <div v-else-if="bottomPanel === 'ai'" class="ai-panel-body">
+                        <div class="ai-status-line" :class="aiStatusClass">{{ aiStatusText }}</div>
+                        <textarea v-model="rewriteInstruction" class="ai-textarea desktop-ai-textarea" :placeholder="t('ai_instruction_placeholder')"></textarea>
+                        <div class="assistant-actions desktop-ai-actions">
+                            <button class="toolbar-btn toolbar-btn-primary" @click="rewriteWithAi" :disabled="rewriting">{{ rewriting ? t('rewriting') : t('rewrite_code') }}</button>
+                            <button class="toolbar-btn" @click="applyRewrite" :disabled="!rewrittenCode">{{ t('apply_rewrite') }}</button>
+                        </div>
+                        <pre class="helper-preview helper-preview-panel">{{ rewrittenCode || t('rewrite_result_empty') }}</pre>
+                    </div>
+                </section>
+            </section>
+        </main>
+    </div>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
