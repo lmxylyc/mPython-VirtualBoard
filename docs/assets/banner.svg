@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 340" font-family="'PingFang SC','Microsoft YaHei','Segoe UI',system-ui,sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#121828"/>
+      <stop offset="1" stop-color="#1d2642"/>
+    </linearGradient>
+    <linearGradient id="pcb" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#262c39"/>
+      <stop offset="1" stop-color="#1b202a"/>
+    </linearGradient>
+    <radialGradient id="gold" cx="0.35" cy="0.3" r="1.1">
+      <stop offset="0" stop-color="#f4d894"/>
+      <stop offset="0.6" stop-color="#d8b25c"/>
+      <stop offset="1" stop-color="#a8843c"/>
+    </radialGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5b7bff"/>
+      <stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="soft" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="60"/>
+    </filter>
+  </defs>
+
+  <!-- 背景 -->
+  <rect width="1200" height="340" rx="20" fill="url(#bg)"/>
+  <ellipse cx="1080" cy="40" rx="260" ry="140" fill="#4f6df5" opacity="0.22" filter="url(#soft)"/>
+  <ellipse cx="120" cy="330" rx="240" ry="130" fill="#38bdf8" opacity="0.14" filter="url(#soft)"/>
+
+  <!-- 掌控板 -->
+  <g>
+    <!-- 排针 -->
+    <g fill="#d8b25c" opacity="0.9">
+      <rect x="116" y="27" width="308" height="10" rx="3" fill="none"/>
+      <g>
+        <rect x="116" y="27" width="14" height="10" rx="2"/><rect x="138" y="27" width="14" height="10" rx="2"/><rect x="160" y="27" width="14" height="10" rx="2"/><rect x="182" y="27" width="14" height="10" rx="2"/><rect x="204" y="27" width="14" height="10" rx="2"/><rect x="226" y="27" width="14" height="10" rx="2"/><rect x="248" y="27" width="14" height="10" rx="2"/><rect x="270" y="27" width="14" height="10" rx="2"/><rect x="292" y="27" width="14" height="10" rx="2"/><rect x="314" y="27" width="14" height="10" rx="2"/><rect x="336" y="27" width="14" height="10" rx="2"/><rect x="358" y="27" width="14" height="10" rx="2"/><rect x="380" y="27" width="14" height="10" rx="2"/><rect x="402" y="27" width="14" height="10" rx="2"/>
+      </g>
+      <g>
+        <rect x="116" y="315" width="14" height="10" rx="2"/><rect x="138" y="315" width="14" height="10" rx="2"/><rect x="160" y="315" width="14" height="10" rx="2"/><rect x="182" y="315" width="14" height="10" rx="2"/><rect x="204" y="315" width="14" height="10" rx="2"/><rect x="226" y="315" width="14" height="10" rx="2"/><rect x="248" y="315" width="14" height="10" rx="2"/><rect x="270" y="315" width="14" height="10" rx="2"/><rect x="292" y="315" width="14" height="10" rx="2"/><rect x="314" y="315" width="14" height="10" rx="2"/><rect x="336" y="315" width="14" height="10" rx="2"/><rect x="358" y="315" width="14" height="10" rx="2"/><rect x="380" y="315" width="14" height="10" rx="2"/><rect x="402" y="315" width="14" height="10" rx="2"/>
+      </g>
+    </g>
+    <!-- 板身 -->
+    <rect x="90" y="36" width="360" height="280" rx="26" fill="url(#pcb)" stroke="#39404e" stroke-opacity="0.6"/>
+    <!-- OLED -->
+    <rect x="182" y="80" width="176" height="74" rx="8" fill="#050a12" stroke="#39404e" stroke-width="3"/>
+    <text x="270" y="124" text-anchor="middle" font-family="'SF Mono',Consolas,monospace" font-size="16" fill="#7dd3fc" filter="url(#glow)">Hello, mPython!</text>
+    <!-- 按键 A/B -->
+    <circle cx="150" cy="196" r="26" fill="url(#gold)"/>
+    <text x="150" y="203" text-anchor="middle" font-size="17" font-weight="800" fill="#4a3a15">A</text>
+    <circle cx="390" cy="196" r="26" fill="url(#gold)"/>
+    <text x="390" y="203" text-anchor="middle" font-size="17" font-weight="800" fill="#4a3a15">B</text>
+    <!-- RGB -->
+    <circle cx="244" cy="194" r="9" fill="#f43f5e" filter="url(#glow)"/>
+    <circle cx="270" cy="194" r="9" fill="#10b981" filter="url(#glow)"/>
+    <circle cx="296" cy="194" r="9" fill="#3b82f6" filter="url(#glow)"/>
+    <!-- Logo -->
+    <text x="270" y="262" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="3" fill="#ffffff" opacity="0.38">mPython</text>
+    <!-- 触摸焊盘 -->
+    <g stroke="#d8b25c" stroke-width="2.5" fill="none" opacity="0.8">
+      <path d="M 167 288 a 13 13 0 0 0 26 0"/>
+      <path d="M 203 288 a 13 13 0 0 0 26 0"/>
+      <path d="M 239 288 a 13 13 0 0 0 26 0"/>
+      <path d="M 275 288 a 13 13 0 0 0 26 0"/>
+      <path d="M 311 288 a 13 13 0 0 0 26 0"/>
+      <path d="M 347 288 a 13 13 0 0 0 26 0"/>
+    </g>
+  </g>
+
+  <!-- 标题与标语 -->
+  <text x="520" y="138" font-size="52" font-weight="800" letter-spacing="0.5">
+    <tspan fill="#ffffff">mPython </tspan><tspan fill="url(#accent)">VirtualBoard</tspan>
+  </text>
+  <rect x="524" y="160" width="64" height="4" rx="2" fill="url(#accent)"/>
+  <text x="520" y="212" font-size="26" font-weight="600" fill="#dbe2f4">没有实体板，也能学掌控板编程</text>
+  <text x="520" y="252" font-size="16" fill="#8b93a7">完整硬件仿真 · 双编程模式 · Mind+ 转译 · 本地 AI 辅助 · Thonny 联动</text>
+  <text x="520" y="286" font-size="14" fill="#6b7280">Learn board coding — no hardware required.</text>
+</svg>

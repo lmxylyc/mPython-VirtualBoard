@@ -4,7 +4,7 @@
 
 ### 方式一：绿色便携版（推荐）
 
-1. **下载**：从 [GitHub Releases](https://github.com/moriduobai/mpython-virtual-machine/releases) 下载最新版本
+1. **下载**：从 [GitHub Releases](https://github.com/lmxylyc/mPython-VirtualBoard/releases) 下载最新版本
 2. **解压**：将压缩包解压到任意文件夹
 3. **运行**：双击 `mPython-VM.exe` 即可启动
 
@@ -12,8 +12,8 @@
 
 1. **克隆项目**：
    ```bash
-   git clone https://github.com/moriduobai/mpython-virtual-machine.git
-   cd mpython-virtual-machine
+   git clone https://github.com/lmxylyc/mPython-VirtualBoard.git
+   cd mPython-VirtualBoard
    ```
 
 2. **安装依赖**：

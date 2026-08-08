@@ -1,276 +1,124 @@
-# mPython Virtual Board 教学仿真器（双版本）
+<div align="center">
 
-> **mPython 掌控板仿真教学解决方案** —— 提供桌面版与 Web 版两套形态，让青少年无需物理硬件即可完成掌控板编程学习。
+<img src="docs/assets/banner.svg" alt="mPython VirtualBoard · 虚拟掌控板" width="880" />
 
-## 版本总览
+**没有实体板，也能学掌控板编程**
 
-| 版本 | 目录 | 技术栈 | 定位 |
-| --- | --- | --- | --- |
-| **桌面版**（Tkinter） | 项目根目录 | Python + Tkinter + Socket | 悬浮显示窗口 + 服务器/客户端架构，配合 Thonny/IDLE 使用 |
-| **Web 版**（教学工作台） | [`mpython-vm-web/`](mpython-vm-web/README.md) | pywebview + Vue 3 + Monaco | 双模式教学工作台：内置编译器、AI 改写、真实传感器连接 |
+[中文](README.md) · [English](README_EN.md)
 
-两套版本共享同一套硬件仿真模型（OLED、RGB、按键、触摸、传感器），可根据教学场景选择：
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](#)
+[![Stars](https://img.shields.io/github/stars/lmxylyc/mPython-VirtualBoard?style=social)](https://github.com/lmxylyc/mPython-VirtualBoard/stargazers)
 
-- **桌面版**适合在 Thonny/IDLE 中写代码、配合悬浮掌控板观察效果的经典工作流；
-- **Web 版**是集成度更高的一体化教学工作台（图形化转译 → 运行 → 硬件反馈 → AI 辅助改写），详见 [mpython-vm-web/README.md](mpython-vm-web/README.md)。
+[🌐 在线体验交互宣传页](https://lmxylyc.github.io/mPython-VirtualBoard/) · [📖 详细使用文档](USER_GUIDE.md) · [🚀 快速上手指南](GettingStarted.md)
+
+</div>
 
 ---
 
-# 桌面版：mPython Virtual Machine（Tkinter）
+## 为什么需要它
 
-> **mPython掌控板虚拟机** —— 青少年学习掌控板的辅助工具，让学习掌控版无需物理硬件，随时随地探索创造！
+器材不够、损耗心疼、课前发放课后回收——这些都不该成为编程课的阻碍。
 
-mPython Virtual Machine 是一个基于 Python 的 mPython 掌控板完整模拟器，学生版支持 mPython 原生模式和 PinPong 模式两种编程方式，可在自制的IDE上运行（建议初学者通过mind+上传模式的代码生成器来写与mind+的直连还在研制中）。Thonny/IDLE 等 IDE端口配合下文给出的调用代码支持通过悬浮显示窗口实时展示虚拟掌控板状态，
+- **零器材开课**：一人一台电脑即可拥有完整的掌控板体验，学校无需集中采购与维护硬件
+- **代码所见即所得**：每一行代码都实时反映在虚拟板的屏幕、灯光与传感器上，调试直观
+- **无缝衔接真实硬件**：同一套 mPython / PinPong API，课堂上在虚拟板验证，课后可直接烧录到实体板
 
-## 具身智能教育
+## 核心功能
 
-本项目致力于降低具身智能（Embodied Intelligence）学习门槛，让青少年无需购买实体机器人设备即可学习具身智能编程。通过完整的感知-决策-执行闭环系统模拟，帮助学生建立具身智能的系统认知。
-- **感知层**：光线传感器、声音传感器、加速度计、陀螺仪、地磁传感器
-- **决策层**：支持 mPython/PinPong 编程模式
-- **执行层**：OLED显示屏、RGB LED、蜂鸣器、触摸按键
+| | |
+| --- | --- |
+| 🖥️ **完整硬件仿真** | OLED 屏、三路 RGB、双按键、六路触摸、蜂鸣器，以及加速度、陀螺仪、磁力、光线、声音传感器 |
+| 🔀 **双编程模式** | mPython 与 PinPong 两条教学路径自由切换，贴合不同教材与课程体系 |
+| 🧩 **Mind+ 图形化转译** | 粘贴 Mind+ 上传模式自动生成的代码，内置转译器一键转为 Python 并直接运行 |
+| 🤖 **本地 AI 辅助改写** | PinPong 模式接入本地 Ollama + DeepSeek 模型，自然语言要求改写成规范教学代码，数据不出本机 |
+| 📈 **真实传感器接入** | USB 串口连接实体掌控板，实时读取真实加速度、陀螺仪、磁力、光线与声音数据 |
+| 🪟 **Thonny 联动与悬浮窗** | 桌面版与 Thonny / IDLE 无缝配合，虚拟板窗口始终置顶悬浮，边写代码边看效果 |
 
-##  特点
+## 两个版本，各取所需
 
--  **完整硬件模拟**：OLED显示屏、RGB LED、按键、触摸传感器、光线/声音/加速度传感器、陀螺仪、地磁传感器
--  **双模式支持**：mPython模式和PinPong模式自由切换
--  **悬浮显示窗口**：虚拟掌控板始终置顶，方便观察
--  **网络通信**：服务器-客户端架构，支持Thonny/IDLE远程控制
--  **多语言支持**：支持中文、English、日本語、한국어、Français、Deutsch、Español、Русский
--  **打开即用**：一键启动器，无需物理硬件
--  **具身智能教育**：完整的感知-决策-执行闭环系统
+| | **mPython VM Studio**（Web 工作台） | **mPython Virtual Machine**（桌面版） |
+| --- | --- | --- |
+| 定位 | 一体化教学工作台，打开即用 | Thonny / IDLE 课堂联动 |
+| 技术栈 | PyWebView · Vue 3 · Monaco | Tkinter · Socket · 虚拟 USB |
+| 亮点 | 内置编辑器、Mind+ 转译、AI 改写、真实传感器接入、传感器手动控制面板 | 一键启动、悬浮显示窗口、8 种界面语言、虚拟 USB 与客户端库 |
+| 目录 | [`mpython-vm-web/`](mpython-vm-web/README.md) | 项目根目录 |
 
-##  快速开始
+## 三分钟跑起来
 
-### 方式一：一键启动（推荐）
-
-```bash
-python start_vm.py
-```
-
-或双击运行 `run.bat`
-
-### 方式二：集成IDE版本
+**方式一：VM Studio 工作台（推荐）**
 
 ```bash
-python integrated_vm.py
+git clone https://github.com/lmxylyc/mPython-VirtualBoard.git
+cd mPython-VirtualBoard/mpython-vm-web
+pip install -r requirements.txt
+python main.py
 ```
 
-### 方式三：手动启动
+**方式二：桌面版虚拟机**
 
 ```bash
-# 启动显示窗口（悬浮）
-python display_gui.py
-
-# 启动虚拟机服务
-python vm_server.py
-
-# 在Thonny中运行演示代码
-# 打开 demo.py (mPython模式) 或 demo_pinpong.py (PinPong模式)
+git clone https://github.com/lmxylyc/mPython-VirtualBoard.git
+cd mPython-VirtualBoard
+python start_vm.py        # 也可以双击 run.bat
 ```
 
-##  使用指南
-
-### 在 Thonny 中调用虚拟掌控板
-
-#### 第一步：在 Thonny 中运行代码
-
-1. 打开 Thonny IDE
-2. 点击「文件」→「打开」，选择项目中的 `demo.py` 或 `demo_pinpong.py`
-3. 点击「运行」按钮 
-4. 在虚拟掌控板显示窗口中观察效果
-
-#### 第二步：编写自己的代码
-
-**mPython 模式**：使用 `mpython_client` 库
-
-```python
-from mpython_client import connect
-
-# 连接到虚拟掌控板
-mp = connect()
-
-# 使用 mPython API
-mp.oled.fill(0)
-mp.oled.DispChar("Hello!", 0, 0, 1)
-mp.oled.show()
-
-mp.rgb[0] = (255, 0, 0)
-mp.rgb.write()
-```
-
-**PinPong 模式**：使用 `pinpong_client` 库
-
-```python
-from pinpong_client import *
-
-# 初始化连接
-init()
-
-# 使用 PinPong API
-oled = get_oled()
-oled.clear()
-oled.write("Hello PinPong")
-oled.show()
-
-rgb = get_rgb()
-rgb.write(255, 0, 0)
-```
-
-#### 注意事项
-
--  虚拟掌控板显示窗口必须保持打开
--  虚拟机服务必须正在运行（端口 7778）
--  代码中使用的客户端库必须与项目中的一致
--  不要同时运行多个虚拟机服务实例
-
-### mPython 模式
+**写一段代码试试（mPython 模式）：**
 
 ```python
 from mpython_client import connect
 
 mp = connect()
 
-# OLED显示
 mp.oled.fill(0)
 mp.oled.DispChar("Hello World!", 0, 0, 1)
 mp.oled.show()
 
-# RGB灯
 mp.rgb[0] = (255, 0, 0)
 mp.rgb.write()
-
-# 按键读取
-if mp.button_a.value:
-    print("按键A按下")
-
-# 传感器读取
-print("光线:", mp.light.read())
-print("声音:", mp.sound.read())
 ```
 
-### PinPong 模式
+## 熟悉的硬件，熟悉的 API
 
-```python
-from pinpong_client import *
-
-init()
-
-# OLED显示
-oled = get_oled()
-oled.clear()
-oled.write("Hello PinPong")
-oled.show()
-
-# RGB灯
-rgb = get_rgb()
-rgb.write(255, 0, 0)
-
-# 按键读取
-btn_a = Pin(Pin.P0, Pin.IN)
-if btn_a.read_digital() == 1:
-    print("按键A按下")
-```
-
-##  多语言支持
-
-虚拟掌控板支持8种语言界面，可在左上角语言选择器中切换：
-
-| 语言代码 | 显示名称 |
-|----------|----------|
-| zh_CN | 中文 |
-| en_US | English |
-| ja_JP | 日本語 |
-| ko_KR | 한국어 |
-| fr_FR | Français |
-| de_DE | Deutsch |
-| es_ES | Español |
-| ru_RU | Русский |
-
-##  项目结构
-
-```
-mpython-virtual-machine/
-├── start_vm.py              # 一键启动器
-├── run.bat                  # 批处理启动脚本
-├── vm_server.py             # 虚拟机服务端
-├── display_gui.py           # 虚拟掌控板显示窗口（悬浮）
-├── integrated_vm.py         # 集成IDE版本
-├── mindplus_usb.py          # Mind+ USB桥接服务
-├── mpython_vm.py            # mPython虚拟机核心
-├── clients/                 # 客户端库
-│   ├── mpython_client.py    # mPython模式客户端
-│   └── pinpong_client.py    # PinPong模式客户端
-├── mindplus_extension/      # Mind+扩展
-│   ├── javascript/
-│   │   └── main.js
-│   └── config.json
-├── simulator/               # 硬件模拟模块
-│   ├── __init__.py
-│   ├── gui.py               # GUI组件
-│   ├── shared_state.py      # 共享状态管理
-│   ├── lang/                # 多语言支持
-│   │   ├── __init__.py
-│   │   ├── zh_CN.py
-│   │   ├── en_US.py
-│   │   ├── ja_JP.py
-│   │   ├── ko_KR.py
-│   │   ├── fr_FR.py
-│   │   ├── de_DE.py
-│   │   ├── es_ES.py
-│   │   └── ru_RU.py
-│   └── modules/             # MicroPython模块
-│       ├── NVS.py
-│       ├── camera.py
-│       ├── esp.py
-│       ├── machine.py
-│       ├── neopixel.py
-│       ├── network.py
-│       ├── pc_sensors.py
-│       ├── ssd1106.py
-│       ├── virtual_usb.py
-│       ├── educore/
-│       └── v831/
-├── demo.py                  # mPython模式演示代码
-├── demo_pinpong.py          # PinPong模式演示代码
-├── requirements.txt         # 依赖清单
-├── .gitignore               # Git忽略规则
-├── GettingStarted.md        # 入门指南
-├── LICENSE                  # 许可证
-└── README.md                # 项目文档
-```
-
-##  支持的硬件组件
+虚拟板与实体掌控板保持一致的编程接口，学过的知识零成本迁移。
 
 | 组件 | mPython API | PinPong API |
-|------|-------------|-------------|
-| OLED | `mp.oled` | `get_oled()` |
-| RGB LED | `mp.rgb` | `get_rgb()` |
-| 按键A/B | `mp.button_a` | `Pin(Pin.P0, Pin.IN)` |
-| 触摸按键 | `mp.touch` | `Pin(Pin.P1, Pin.IN)` |
+| --- | --- | --- |
+| OLED 显示屏 | `mp.oled` | `get_oled()` |
+| RGB LED ×3 | `mp.rgb` | `get_rgb()` |
+| 按键 A / B | `mp.button_a` | `Pin(Pin.P0, Pin.IN)` |
+| 触摸按键 ×6 | `mp.touch` | `Pin(Pin.P1, Pin.IN)` |
 | 光线传感器 | `mp.light` | `Sensor(Pin.P2)` |
 | 声音传感器 | `mp.sound` | `Sensor(Pin.P3)` |
 | 加速度计 | `mp.accelerometer` | `get_accel()` |
 | 陀螺仪 | `mp.gyroscope` | `get_gyro()` |
 | 地磁传感器 | `mp.magnetic` | `get_mag()` |
 
-##  技术栈
+## 为真实课堂而设计
 
-- Python 3.8+
-- Tkinter（GUI）
-- Socket（网络通信）
-- pyserial（串口通信）
-- pyusb（USB设备模拟）
+- **图形化 → 代码过渡课**：学生先用 Mind+ 图形化编程，再观察转译后的 Python 代码，自然理解抽象概念
+- **传感器认知课**：连接实体板或使用手动控制面板，直观理解加速度、光线、声音的数值变化
+- **AI 代码改写课**：学生先写原始代码，再用本地 AI 改写为规范版本，对比中学习编程规范
+- **无硬件演示课**：机房没有实体板时，虚拟板提供与真实硬件完全一致的教学体验
 
-##  许可证
+## 多语言界面
 
-MIT License - 详见 [LICENSE](LICENSE)
+桌面版支持 8 种界面语言：中文 · English · 日本語 · 한국어 · Français · Deutsch · Español · Русский
 
-##  贡献
+## 文档与链接
 
-欢迎提交Issue和Pull Request！
+- 🌐 [交互式宣传站（可在线玩虚拟板）](https://lmxylyc.github.io/mPython-VirtualBoard/)
+- 📖 [详细使用文档（双模式完整指南）](USER_GUIDE.md)
+- 🚀 [快速上手指南](GettingStarted.md)
+- 💻 [Web 版专属文档](mpython-vm-web/README.md)
 
 ---
 
-**开发作者**：林奕呈
+<div align="center">
 
-**项目地址**：https://github.com/lmxylyc/mPython-VirtualBoard
+**开发作者**：林奕呈 · **开源协议**：[MIT](LICENSE)
+
+如果这个项目对你的课堂有帮助，欢迎点一颗 ⭐ **Star** 支持一下！
+
+</div>
